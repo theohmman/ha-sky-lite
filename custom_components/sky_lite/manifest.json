@@ -1,0 +1,10 @@
+{
+  "domain": "sky_lite",
+  "name": "Sky Lite",
+  "codeowners": ["@theohmman"],
+  "config_flow": true,
+  "documentation": "https://github.com/theohmman/ha-sky-lite",
+  "iot_class": "local_polling",
+  "version": "2.0.0",
+  "requirements": ["ephem==4.1.5"]
+}
