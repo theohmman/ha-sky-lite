@@ -76,24 +76,24 @@ styles:
     sky_plot:
       - width: 100%
       - height: 100%
+```
 
-      
- 
-Technical Feature Explanations...
+---
+
+### Technical Feature Explanations...
 
 These explanations describe the unique astronomical logic implemented in the Beta v48 build.
 
 1. Radiant Path Lunar Rendering
-Unlike standard icons that use pre-rendered images, Sky Lite utilizes a Pure Path Rendering engine for the moon. It mathematically constructs a Beige Radiant Path (#f5f5dc) that acts as a physical "sliver" on a solid disk. This eliminates "globe" artifacts and ensures that even at extremely thin phases, the moon appears as a sharp, vibrant sliver rather than a dim ball.
+   Unlike standard icons that use pre-rendered images, Sky Lite utilizes a Pure Path Rendering engine for the moon. It mathematically constructs a Beige Radiant Path (#f5f5dc) that acts as a physical "sliver" on a solid disk. This eliminates "globe" artifacts and ensures that even at extremely thin phases, the moon appears as a sharp, vibrant sliver rather than a dim ball.
 
 2. Universal Reflector Logic
-The moon's orientation is controlled by a multi-stage physical check:
-Hemisphere Synchronization: The engine automatically detects the observer's hemisphere. In the Northern Hemisphere, a waning moon is rendered as Left-Lit, while in the Southern Hemisphere, it is rendered as Right-Lit.
-Map-Rotation Correction: If a user in the Northern Hemisphere flips their map to South-Up, the internal geometry of the moon icon is counter-mirrored. This ensures the crescent visually remains on the correct physical side of the observer’s screen to match the real sky.
+   The moon's orientation is controlled by a multi-stage physical check:
+   Hemisphere Synchronization: The engine automatically detects the observer's hemisphere. In the Northern Hemisphere, a waning moon is rendered as Left-Lit, while in the Southern Hemisphere, it is rendered as Right-Lit.
+   Map-Rotation Correction: If a user in the Northern Hemisphere flips their map to South-Up, the internal geometry of the moon icon is counter-mirrored. This ensures the crescent visually remains on the correct physical side of the observer’s screen to match the real sky.
 
 3. Nominal Polar Alignment
-The "bulge" of the lunar crescent is dynamically aligned with the Sun's azimuth in coordinate space. This ensures that on the polar plot, the moon always physically "points" toward the sun’s location, providing a technically accurate cartographic representation regardless of map inversion.
+   The "bulge" of the lunar crescent is dynamically aligned with the Sun's azimuth in coordinate space. This ensures that on the polar plot, the moon always physically "points" toward the sun’s location, providing a technically accurate cartographic representation regardless of map inversion.
 
 4. Adaptive Legend
-The Celestial Legend is designed as a high-density technical HUD. It automatically adapts its icons to show the nominal ground-view for the observer's hemisphere. The typography is locked to a micro-technical scale for dashboard efficiency
-     
+   The Celestial Legend is designed as a high-density technical HUD. It automatically adapts its icons to show the nominal ground-view for the observer's hemisphere. The typography is locked to a micro-technical scale for dashboard efficiency
