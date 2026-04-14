@@ -26,7 +26,9 @@ class SkyLiteOptionsFlowHandler(config_entries.OptionsFlow):
 # ... (inside SkyLiteOptionsFlowHandler async_step_init)
         return self.async_show_form(step_id="init", data_schema=vol.Schema({
             vol.Optional(CONF_UPDATE_INTERVAL, default=options.get(CONF_UPDATE_INTERVAL, 60)): selector.NumberSelector(selector.NumberSelectorConfig(min=10, max=3600, step=1, mode="box")),
+            vol.Optional(CONF_AUTO_THEME, default=options.get(CONF_AUTO_THEME, False)): selector.BooleanSelector(), # New
             vol.Optional(CONF_THEME_MODE, default=options.get(CONF_THEME_MODE, "system")): selector.SelectSelector(selector.SelectSelectorConfig(options=["system", "light", "dark"], mode="dropdown")),
+            vol.Optional(CONF_SHOW_MILKY_WAY, default=options.get(CONF_SHOW_MILKY_WAY, False)): selector.BooleanSelector(),
             vol.Optional(CONF_SHOW_CONSTELLATIONS, default=options.get(CONF_SHOW_CONSTELLATIONS, False)): selector.BooleanSelector(),
             vol.Optional(CONF_SHOW_CONST_LABELS, default=options.get(CONF_SHOW_CONST_LABELS, False)): selector.BooleanSelector(),
             vol.Optional(CONF_INVERT_PLOT, default=options.get(CONF_INVERT_PLOT, False)): selector.BooleanSelector(),

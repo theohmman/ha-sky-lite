@@ -1,4 +1,4 @@
-# Sky Lite (Beta 0414.26.0336)
+# Sky Lite (Beta 0414.26.v48)
 
 A lightweight, high-performance celestial tracker and polar plot generator for Home Assistant.
 
@@ -36,11 +36,19 @@ This project was born as a lightweight "fork in spirit" of [ha_skyfield](https:/
 
 ## ⚙️ Configuration & Options
 Once installed, you can click the **Configure** button on the integration to adjust:
-* **Update Interval:** 10s to 3600s (Default: 60s).
-* **Theme Mode:** Toggle between System (Auto), Forced Light, or Forced Dark.
-* **Show Constellations:** Toggle lines for major anchors like Orion and the Big Dipper.
-* **Constellation Labels:** Show/Hide names for star groups.
-* **Invert Plot:** Flips the map (South is Up) for Southern Hemisphere observers.
+
+Update Interval Defines how often the SVG plot and legend data are refreshed in seconds. The default is 60 seconds.
+
+Latitude, Longitude, & Elevation Primary coordinates used by the ephem observer to calculate the precise altitude and azimuth of celestial bodies for your specific location.
+
+Invert Plot (South-Up Mode) Toggles the polar map between a standard North-Up orientation and a South-Up "Reflector" orientation. This is particularly useful for observers using Newtonian telescopes or those preferring a ground-view perspective.
+
+Theme Mode Users can force Light, Dark, or System themes. The component dynamically shifts gradients and text colors to maintain high contrast.
+Auto Theme When enabled, the integration automatically switches between Light and Dark modes based on the Sun's actual altitude relative to the horizon (-0.015 degrees).
+
+Show Constellations Toggles the rendering of line-art paths for major constellations like Ursa Major and Orion based on the observer's current field of view.
+
+Selected Bodies Allows the user to choose which planetary bodies (Sun, Moon, Mars, Venus, etc.) appear in both the plot and the legend table.
 
 ---
 
@@ -68,3 +76,24 @@ styles:
     sky_plot:
       - width: 100%
       - height: 100%
+
+      
+ 
+Technical Feature Explanations...
+
+These explanations describe the unique astronomical logic implemented in the Beta v48 build.
+
+1. Radiant Path Lunar Rendering
+Unlike standard icons that use pre-rendered images, Sky Lite utilizes a Pure Path Rendering engine for the moon. It mathematically constructs a Beige Radiant Path (#f5f5dc) that acts as a physical "sliver" on a solid disk. This eliminates "globe" artifacts and ensures that even at extremely thin phases, the moon appears as a sharp, vibrant sliver rather than a dim ball.
+
+2. Universal Reflector Logic
+The moon's orientation is controlled by a multi-stage physical check:
+Hemisphere Synchronization: The engine automatically detects the observer's hemisphere. In the Northern Hemisphere, a waning moon is rendered as Left-Lit, while in the Southern Hemisphere, it is rendered as Right-Lit.
+Map-Rotation Correction: If a user in the Northern Hemisphere flips their map to South-Up, the internal geometry of the moon icon is counter-mirrored. This ensures the crescent visually remains on the correct physical side of the observer’s screen to match the real sky.
+
+3. Nominal Polar Alignment
+The "bulge" of the lunar crescent is dynamically aligned with the Sun's azimuth in coordinate space. This ensures that on the polar plot, the moon always physically "points" toward the sun’s location, providing a technically accurate cartographic representation regardless of map inversion.
+
+4. Adaptive Legend
+The Celestial Legend is designed as a high-density technical HUD. It automatically adapts its icons to show the nominal ground-view for the observer's hemisphere. The typography is locked to a micro-technical scale for dashboard efficiency
+     
