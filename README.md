@@ -1,99 +1,131 @@
-# Sky Lite (Beta 0414.26.v48)
+# Sky Lite for Home Assistant Beta 2.02
 
-A lightweight, high-performance celestial tracker and polar plot generator for Home Assistant.
+Sky Lite is a lightweight, highly performant custom integration for Home Assistant that generates a real-time, SVG-based celestial map for your dashboard. 
 
-## 🌌 The Inspiration
-This project was born as a lightweight "fork in spirit" of [ha_skyfield](https://github.com/partofthething/ha_skyfield). While the original project provides incredible scientific accuracy, its heavy dependencies (Matplotlib, NumPy, and Skyfield) often fail to compile or run efficiently on ARM-based hardware like the **Raspberry Pi**. 
-
-**Sky Lite** strips away the heavy rendering engines and replaces them with a "headless" SVG generator, making it the perfect choice for users who want beautiful sky visuals without the CPU overhead.
+Built entirely with native Home Assistant architecture, Sky Lite calculates and renders the positions of the sun, moon, planets, stars, and IAU constellations dynamically. It avoids heavy iFrames, external cloud APIs, and destructive disk I/O operations by rendering pure mathematical SVGs directly to a virtual image entity.
 
 ---
 
 ## ✨ Features
-* **Pi-Friendly Architecture:** Uses the C-based `ephem` library for near-zero CPU impact.
-* **Dynamic SVG Rendering:** Generates a real-time, theme-aware polar plot directly in a sensor attribute.
-* **Atmospheric Visuals:** Includes a radial horizon gradient and elevation rings (10° increments).
-* **The Ecliptic & Zodiac:** Full 12-sign Zodiac paths and the "Summer Triangle" markers to help track planetary movement.
-* **Solar Paths:** Visualizes the Summer Solstice, Winter Solstice, and Today’s specific Sun path.
-* **Theme Support:** Supports System, Light, and Dark modes with automatic CSS variable mapping.
+
+* **Real-Time Celestial Rendering:** Accurately tracks and displays the Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn, and the 88 recognized IAU constellations.
+* **Astronomically Accurate Scaling:** Planetary bodies are rendered using standard astronomical color hex codes and accurate relative visual sizing.
+* **Zero Disk I/O:** Renders entirely in memory using the native Home Assistant `image` platform. It never writes temporary image files to your hard drive or SD card, preserving your hardware.
+* **Smart Polling Engine:** Respects your server resources by remaining completely dormant until your user-defined refresh interval (e.g., 1, 5, or 15 minutes) has passed.
+* **Dynamic Auto-Theming:** Can automatically switch between Light Mode and Dark Mode based on the physical altitude of the sun at your specific coordinates.
+* **Astronomer Mode (Night Vision):** A dedicated, pure-red UI theme that preserves your night vision when using the dashboard outdoors.
+* **Customizable UI:** Toggle compass markers, invert North/South orientation, adjust refresh rates, and toggle constellation lines/labels directly from the Home Assistant integrations menu—no YAML configuration required.
+* **Companion Legend:** Includes logic to generate a beautiful, dynamic Markdown table showing the current Altitude and Azimuth of the celestial bodies.
 
 ---
 
-## 🛠️ Installation
+## 🚀 Installation
 
-### Manual Installation
-1. Download the `sky_lite` folder.
-2. Copy it into your Home Assistant `/config/custom_components/` directory.
+### Option 1: HACS (Recommended)
+1. Open HACS in your Home Assistant instance.
+2. Click the three dots in the top right corner and select **Custom repositories**.
+3. Add the URL of this repository and select **Integration** as the category.
+4. Click **Add**, then search for "Sky Lite" in HACS and click **Download**.
+5. Restart Home Assistant.
+
+### Option 2: Manual Installation
+1. Download the latest release from this repository.
+2. Extract the `sky_lite` folder into your `custom_components` directory in Home Assistant.
 3. Restart Home Assistant.
-4. Go to **Settings > Devices & Services > Add Integration** and search for "Sky Lite".
 
-### HACS (Recommended)
-1. Add this repository URL as a **Custom Repository** in HACS.
-2. Click **Install**.
-3. Restart Home Assistant and add the integration via the Devices menu.
-
----
-
-## ⚙️ Configuration & Options
-Once installed, you can click the **Configure** button on the integration to adjust:
-
-Update Interval Defines how often the SVG plot and legend data are refreshed in seconds. The default is 60 seconds.
-
-Latitude, Longitude, & Elevation Primary coordinates used by the ephem observer to calculate the precise altitude and azimuth of celestial bodies for your specific location.
-
-Invert Plot (South-Up Mode) Toggles the polar map between a standard North-Up orientation and a South-Up "Reflector" orientation. This is particularly useful for observers using Newtonian telescopes or those preferring a ground-view perspective.
-
-Theme Mode Users can force Light, Dark, or System themes. The component dynamically shifts gradients and text colors to maintain high contrast.
-Auto Theme When enabled, the integration automatically switches between Light and Dark modes based on the Sun's actual altitude relative to the horizon (-0.015 degrees).
-
-Show Constellations Toggles the rendering of line-art paths for major constellations like Ursa Major and Orion based on the observer's current field of view.
-
-Selected Bodies Allows the user to choose which planetary bodies (Sun, Moon, Mars, Venus, etc.) appear in both the plot and the legend table.
+### Setup
+1. Navigate to **Settings > Devices & Services > Integrations**.
+2. Click **+ Add Integration** and search for "Sky Lite".
+3. Enter the Latitude, Longitude, and Elevation for your observatory.
+4. Once installed, click the **Configure** button on the integration to adjust your theme, map refresh rate, toggles, and layout preferences.
 
 ---
 
-## 📊 Dashboard Setup
-To display the map, use the **Custom Button Card** (available in HACS) to handle the raw SVG data:
+## 🖥️ Dashboard Setup
+
+Sky Lite exposes an image entity (`image.sky_lite_map`) and a sensor entity (`sensor.sky_lite_legend`). You can display these on your Lovelace dashboard using standard cards.
+
+### 1. The Sky Map (Picture Entity Card)
+To display the map, use a standard `picture-entity` card. Clicking the map will open a crisp, static, high-resolution viewer.
 
 ```yaml
-type: custom:button-card
-entity: sensor.sky_lite_view
+type: picture-entity
+entity: image.sky_lite_map
 show_name: false
-show_icon: false
-aspect_ratio: 1/1
-custom_fields:
-  sky_plot: |
-    [[[ return entity.attributes.svg_plot ]]]
-styles:
-  grid:
-    - grid-template-areas: "\"sky_plot\""
-  card:
-    - background-color: transparent
-    - border-radius: 50%
-    - padding: 0px
-    - border: none
-  custom_fields:
-    sky_plot:
-      - width: 100%
-      - height: 100%
+show_state: false
+```
+
+### 2. The Celestial Legend (Markdown + Card Mod)
+To display the dynamic altitude and azimuth data, you can use a Markdown card. 
+
+* **Requirement:** This setup requires [card-mod](https://github.com/thomasloven/lovelace-card-mod) installed via HACS to style the table seamlessly and generate the pure CSS planetary spheres.
+
+```yaml
+type: markdown
+content: |
+  ## <ha-icon icon="mdi:telescope"></ha-icon> Celestial Legend
+
+  | Body | Altitude | Azimuth |
+  | :---: | :---: | :---: |
+  {%- set bodies = state_attr('sensor.sky_lite_legend', 'celestial_bodies') %}
+  {%- set colors = {
+    'Sun': '#FDB813',
+    'Moon': '#E6E6E6',
+    'Jupiter': '#C88B3A',
+    'Saturn': '#E3CB8B',
+    'Venus': '#F5D76E',
+    'Mars': '#E27B58',
+    'Mercury': '#97979F'
+  } %}
+  {%- if bodies %}
+    {%- for body, coords in bodies.items() %}
+  | <div style="display: flex; align-items: center; justify-content: flex-start; padding-left: 10px;"><div style="width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.7) 0%, {{ colors.get(body, '#ffffff') }} 100%); margin-right: 12px; box-shadow: 0 0 5px {{ colors.get(body, '#ffffff') }}40;"></div>**{{ body }}**</div> | {{ coords.alt }}° | {{ coords.az }}° |
+    {%- endfor %}
+  {%- else %}
+  | Waiting for celestial data... | - | - |
+  {%- endif %}
+card_mod:
+  style:
+    ha-markdown $: |
+      h2 {
+        font-size: 1.2em;
+        font-weight: bold;
+        margin-bottom: 12px;
+        margin-top: 0px;
+        color: var(--primary-text-color);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95em;
+      }
+      th {
+        border-bottom: 2px solid var(--divider-color) !important;
+        color: var(--secondary-text-color);
+        padding: 8px 4px !important;
+        text-align: center !important;
+      }
+      td {
+        border-bottom: 1px solid var(--divider-color);
+        padding: 10px 4px !important;
+        color: var(--primary-text-color);
+        text-align: center !important;
+      }
+      td:nth-child(3) {
+        color: var(--secondary-text-color);
+      }
+    .: |
+      ha-card {
+        background: var(--card-background-color);
+        border-radius: var(--ha-card-border-radius, 12px);
+      }
 ```
 
 ---
 
-### Technical Feature Explanations...
+## 📜 Attributions & Acknowledgments
 
-These explanations describe the unique astronomical logic implemented in the Beta v48 build.
-
-1. Radiant Path Lunar Rendering
-   Unlike standard icons that use pre-rendered images, Sky Lite utilizes a Pure Path Rendering engine for the moon. It mathematically constructs a Beige Radiant Path (#f5f5dc) that acts as a physical "sliver" on a solid disk. This eliminates "globe" artifacts and ensures that even at extremely thin phases, the moon appears as a sharp, vibrant sliver rather than a dim ball.
-
-2. Universal Reflector Logic
-   The moon's orientation is controlled by a multi-stage physical check:
-   Hemisphere Synchronization: The engine automatically detects the observer's hemisphere. In the Northern Hemisphere, a waning moon is rendered as Left-Lit, while in the Southern Hemisphere, it is rendered as Right-Lit.
-   Map-Rotation Correction: If a user in the Northern Hemisphere flips their map to South-Up, the internal geometry of the moon icon is counter-mirrored. This ensures the crescent visually remains on the correct physical side of the observer’s screen to match the real sky.
-
-3. Nominal Polar Alignment
-   The "bulge" of the lunar crescent is dynamically aligned with the Sun's azimuth in coordinate space. This ensures that on the polar plot, the moon always physically "points" toward the sun’s location, providing a technically accurate cartographic representation regardless of map inversion.
-
-4. Adaptive Legend
-   The Celestial Legend is designed as a high-density technical HUD. It automatically adapts its icons to show the nominal ground-view for the observer's hemisphere. The typography is locked to a micro-technical scale for dashboard efficiency
+* **Astronomical Engine:** The core positional mathematics and transit calculations powering Sky Lite are driven by **[PyEphem](https://rhodesmill.org/pyephem/)**, a scientific-grade Python library for high-precision astronomy.
+* **Constellation Data:** Standardized abbreviations and mappings conform to the **[International Astronomical Union (IAU)](https://www.iau.org/)** designations.
+* **Inspiration:** This project was built to bring the beauty of physical planetariums and mobile star-tracking applications directly into the smart home ecosystem without the overhead of external APIs or iframe workarounds.
+```
