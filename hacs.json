@@ -1,5 +1,8 @@
 {
   "name": "Sky Lite",
   "render_readme": true,
-  "type": "integration"
+  "filename": "sky_lite",
+  "zip_release": true,
+  "homeassistant": "2024.1.0",
+  "iot_class": "local_polling"
 }
