@@ -12,15 +12,16 @@
       }
     }
   },
-"options": {
+  "options": {
     "step": {
       "init": {
         "title": "Sky Lite Settings",
         "description": "Customize your celestial dashboard display.",
         "data": {
           "theme_mode": "Map Theme",
-          "show_compass": "Show Compass Markers",
+          "update_interval": "Map Refresh Rate",
           "invert_plot": "Invert N/S Orientation",
+          "show_compass": "Show Compass Markers",
           "show_constellations": "Show Constellation Lines",
           "show_const_labels": "Show Constellation Labels",
           "selected_bodies": "Visible Celestial Bodies"
@@ -36,6 +37,16 @@
         "light": "Light Mode",
         "dark": "Dark Mode",
         "red": "Astronomer (Night Vision)"
+      }
+    },
+    "update_interval": {
+      "options": {
+        "1": "Every 1 Minute",
+        "5": "Every 5 Minutes",
+        "10": "Every 10 Minutes",
+        "15": "Every 15 Minutes",
+        "30": "Every 30 Minutes",
+        "60": "Every 1 Hour"
       }
     }
   }

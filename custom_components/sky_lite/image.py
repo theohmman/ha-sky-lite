@@ -1,21 +1,29 @@
 import json, ephem, math, logging
 from datetime import datetime, timedelta
-from homeassistant.components.camera import Camera
+
+# 1. Swap Camera for ImageEntity
+from homeassistant.components.image import ImageEntity 
 from homeassistant.util import dt as dt_util
 from .const import *
 from .data_manager import ConstellationManager
 
 _LOGGER = logging.getLogger(__name__)
 
+# Base polling interval: HA checks the logic every 1 minute
+SCAN_INTERVAL = timedelta(minutes=1)
+
 async def async_setup_entry(hass, config_entry, async_add_entities):
     lat, lon, elev = config_entry.data.get("latitude"), config_entry.data.get("longitude"), config_entry.data.get("elevation")
     manager = ConstellationManager(hass)
     await manager.async_update_data()
-    async_add_entities([SkyLiteMapCamera(hass, config_entry, lat, lon, elev, manager.constellations)], False)
+    # 2. Update the class name here
+    async_add_entities([SkyLiteMapImage(hass, config_entry, lat, lon, elev, manager.constellations)], False)
 
-class SkyLiteMapCamera(Camera):
+# 3. Inherit from ImageEntity instead of Camera
+class SkyLiteMapImage(ImageEntity):
     def __init__(self, hass, entry, lat, lon, elev, constellation_data):
-        super().__init__()
+        # 4. ImageEntity requires 'hass' passed into super()
+        super().__init__(hass) 
         self.content_type = "image/svg+xml"
         self.hass, self.entry, self.lat = hass, entry, float(lat)
         self.constellation_data = constellation_data
@@ -23,6 +31,26 @@ class SkyLiteMapCamera(Camera):
         self.obs.lat, self.obs.lon, self.obs.elevation = str(lat), str(lon), elev
         self._attr_name = "Sky Lite Map"
         self._attr_unique_id = f"sky_lite_map_{entry.entry_id}"
+        self._attr_should_poll = True  # <--- Explicitly turn on the polling engine
+        
+        # Tracking variables for smart updates
+        now = dt_util.utcnow()
+        self._last_update_trigger = now
+        self._attr_image_last_updated = now
+
+    async def async_update(self):
+        """Check if enough time has passed based on user settings to push a new frame."""
+        # Grab the user's selected interval (defaulting to 1 if not set)
+        interval_mins = int(self.entry.options.get(CONF_UPDATE_INTERVAL, "1"))
+        now = dt_util.utcnow()
+        
+        # Calculate seconds elapsed since we last triggered a UI update
+        elapsed_seconds = (now - self._last_update_trigger).total_seconds()
+        
+        # If the elapsed time meets or exceeds the user's setting, push an update
+        if elapsed_seconds >= (interval_mins * 60) - 2: # 2-second buffer for processing time
+            self._last_update_trigger = now
+            self._attr_image_last_updated = now
 
     def get_projection(self, az, alt):
         invert = self.entry.options.get(CONF_INVERT_PLOT, False); r = (90 - alt) / 2.15
@@ -60,7 +88,7 @@ class SkyLiteMapCamera(Camera):
                 svg_p += f'<path d="{d}" fill="none" stroke="{color}" stroke-width="0.55" {dash} opacity="{opacity}" />'
         return svg_p
 
-    def camera_image(self, width=None, height=None):
+    def image(self, *args, **kwargs) -> bytes | None:
         opts, now_utc = self.entry.options, datetime.utcnow()
         self.obs.date = now_utc
         show_compass = opts.get(CONF_SHOW_COMPASS, True) # Grab the new toggle

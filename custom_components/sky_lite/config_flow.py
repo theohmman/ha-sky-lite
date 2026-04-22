@@ -47,6 +47,9 @@ class SkyLiteOptionsFlowHandler(config_entries.OptionsFlow):
                 # Theme & Aesthetics (Auto added, Boolean removed)
                 vol.Optional(CONF_THEME_MODE, default=options.get(CONF_THEME_MODE, "system")): selector.SelectSelector(selector.SelectSelectorConfig(options=["system", "auto", "light", "dark", "red"], mode="dropdown", translation_key="theme_mode")),
                 
+                # Refresh Rate
+                vol.Optional(CONF_UPDATE_INTERVAL, default=options.get(CONF_UPDATE_INTERVAL, "1")): selector.SelectSelector(selector.SelectSelectorConfig(options=["1", "5", "10", "15", "30", "60"], mode="dropdown", translation_key="update_interval")),
+                
                 # Plot Orientation
                 vol.Optional(CONF_SHOW_COMPASS, default=options.get(CONF_SHOW_COMPASS, True)): selector.BooleanSelector(),
                 vol.Optional(CONF_INVERT_PLOT, default=options.get(CONF_INVERT_PLOT, False)): selector.BooleanSelector(),
