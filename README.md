@@ -68,18 +68,9 @@ content: |
   | Body | Altitude | Azimuth |
   | :---: | :---: | :---: |
   {%- set bodies = state_attr('sensor.sky_lite_legend', 'celestial_bodies') %}
-  {%- set colors = {
-    'Sun': '#FDB813',
-    'Moon': '#E6E6E6',
-    'Jupiter': '#C88B3A',
-    'Saturn': '#E3CB8B',
-    'Venus': '#F5D76E',
-    'Mars': '#E27B58',
-    'Mercury': '#97979F'
-  } %}
   {%- if bodies %}
     {%- for body, coords in bodies.items() %}
-  | <div style="display: flex; align-items: center; justify-content: flex-start; padding-left: 10px;"><div style="width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.7) 0%, {{ colors.get(body, '#ffffff') }} 100%); margin-right: 12px; box-shadow: 0 0 5px {{ colors.get(body, '#ffffff') }}40;"></div>**{{ body }}**</div> | {{ coords.alt }}° | {{ coords.az }}° |
+  | **{{ body }}** | {{ coords.alt }}° | {{ coords.az }}° |
     {%- endfor %}
   {%- else %}
   | Waiting for celestial data... | - | - |
@@ -111,6 +102,7 @@ card_mod:
         color: var(--primary-text-color);
         text-align: center !important;
       }
+      /* Keep the azimuth column slightly dimmed */
       td:nth-child(3) {
         color: var(--secondary-text-color);
       }
@@ -119,6 +111,7 @@ card_mod:
         background: var(--card-background-color);
         border-radius: var(--ha-card-border-radius, 12px);
       }
+
 ```
 
 ---
@@ -127,5 +120,6 @@ card_mod:
 
 * **Astronomical Engine:** The core positional mathematics and transit calculations powering Sky Lite are driven by **[PyEphem](https://rhodesmill.org/pyephem/)**, a scientific-grade Python library for high-precision astronomy.
 * **Constellation Data:** Standardized abbreviations and mappings conform to the **[International Astronomical Union (IAU)](https://www.iau.org/)** designations.
-* **Inspiration:** This project was built to bring the beauty of physical planetariums and mobile star-tracking applications directly into the smart home ecosystem without the overhead of external APIs or iframe workarounds.
-```
+* **Architectural Inspiration:** A massive thank you to the **[ha_skyfield](https://github.com/partofthething/ha_skyfield)** project by *partofthething*. This excellent custom component served as foundational inspiration for integrating complex astronomical tracking natively within the Home Assistant ecosystem.
+* **Visual Inspiration:** Conceptual inspiration for the map's aesthetic, SVG projection strategies, and general styling was drawn from the stunning **[d3-celestial](https://github.com/ofrohn/d3-celestial)** JavaScript library by *ofrohn*. 
+* **General Inspiration:** This project was built to bring the beauty of physical planetariums and mobile star-tracking applications directly into the smart home dashboard without the overhead of external APIs or iframe workarounds.
