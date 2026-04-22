@@ -1,0 +1,42 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sky Lite Setup",
+        "description": "Enter the coordinates for your celestial observatory.",
+        "data": {
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "elevation": "Elevation (meters)"
+        }
+      }
+    }
+  },
+"options": {
+    "step": {
+      "init": {
+        "title": "Sky Lite Settings",
+        "description": "Customize your celestial dashboard display.",
+        "data": {
+          "theme_mode": "Map Theme",
+          "show_compass": "Show Compass Markers",
+          "invert_plot": "Invert N/S Orientation",
+          "show_constellations": "Show Constellation Lines",
+          "show_const_labels": "Show Constellation Labels",
+          "selected_bodies": "Visible Celestial Bodies"
+        }
+      }
+    }
+  },
+  "selector": {
+    "theme_mode": {
+      "options": {
+        "system": "System Default",
+        "auto": "Auto (Matches Sun Altitude)",
+        "light": "Light Mode",
+        "dark": "Dark Mode",
+        "red": "Astronomer (Night Vision)"
+      }
+    }
+  }
+}
