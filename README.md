@@ -55,10 +55,8 @@ show_name: false
 show_state: false
 ```
 
-### 2. The Celestial Legend (Markdown + Card Mod)
-To display the dynamic altitude and azimuth data, you can use a Markdown card. 
-
-* **Requirement:** This setup requires [card-mod](https://github.com/thomasloven/lovelace-card-mod) installed via HACS to style the table seamlessly and generate the pure CSS planetary spheres.
+### 2. The Celestial Legend (Markdown)
+To display the dynamic altitude and azimuth data for solar system assets, you can use a Markdown card. 
 
 ```yaml
 type: markdown
