@@ -99,7 +99,7 @@ class SkyLiteMapCamera(Camera):
             c_sec = "var(--secondary-text-color, #d1d5db)"
             c_div = "var(--divider-color, #334155)"
             grad = '<stop offset="0%" stop-color="#020617"/><stop offset="100%" stop-color="#1e293b"/>'
-            h_c = "#000000"    # Safe dark mask for system default      h_c = "#ffffff" if theme == "light" else "#000000"
+            h_c = "#000000"    # Safe dark mask for system default
 
         # 2. Standardized Astronomical Colors & Scaling
         # Format: "Name": ("Hex Color", Size)
@@ -154,9 +154,9 @@ class SkyLiteMapCamera(Camera):
         svg.append(self.get_sun_path(ephem.next_winter_solstice(now_utc) if is_nh else ephem.next_summer_solstice(now_utc), "#38bdf8", 0.4, True))
         svg.append(self.get_sun_path(ephem.Date(now_utc), "#ffcc00", 0.7, False))
 
-        # Constellations
+# Constellations
         if opts.get(CONF_SHOW_CONSTELLATIONS):
-            show_labels = opts.get("show_const_labels", False)
+            show_labels = opts.get(CONF_SHOW_CONST_LABELS, False)
             for abbv, lines in self.constellation_data.items():
                 first_pt = None
                 for segment in lines:
@@ -169,10 +169,15 @@ class SkyLiteMapCamera(Camera):
                             if not first_pt: first_pt = (px, py)
                     if len(c_pts) > 1:
                         svg.append(f'<path d="M ' + ' L '.join([f"{p[0]},{p[1]}" for p in c_pts]) + f'" fill="none" stroke="{c_sec}" stroke-width="0.2" opacity="0.5" />')
+                
                 if show_labels and first_pt:
-                    svg.append(f'<text x="{first_pt[0]+1.5}" y="{first_pt[1]+1.5}" fill="{c_pri}" font-size="2.4" opacity="0.85">{abbv}</text>')
+                    # Translate the abbreviation into the full Latin name
+                    full_name = CONSTELLATIONS.get(abbv, abbv)
+                    
+                    # Apply the paint-order outline so the text pops against the star lines
+                    svg.append(f'<text x="{first_pt[0]+1.5}" y="{first_pt[1]+1.5}" fill="{c_pri}" stroke="{h_c}" stroke-width="0.5" paint-order="stroke fill" font-size="2.4" opacity="0.85">{full_name}</text>')
 
-        # RESTORED: Planets, Sun, and Moon
+# RESTORED: Planets, Sun, and Moon
         m1, m2 = ephem.Moon(self.obs), ephem.Moon()
         m2.compute(float(self.obs.date) + 0.1); waning = m2.phase < m1.phase
 
