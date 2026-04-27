@@ -7,7 +7,12 @@ CONF_INVERT_PLOT = "invert_plot"
 CONF_SHOW_CONSTELLATIONS = "show_constellations"
 CONF_SHOW_CONST_LABELS = "show_const_labels"
 CONF_SELECTED_BODIES = "selected_bodies"
-CONF_UPDATE_INTERVAL = "update_interval" # New Variable
+CONF_UPDATE_INTERVAL = "update_interval" 
+CONF_PROJECTION_TERRESTRIAL = "projection_terrestrial" 
+CONF_SHOW_STARS = "show_stars"
+CONF_SHOW_DSO = "show_dso"
+CONF_SHOW_MILKY_WAY = "show_milky_way"
+CONF_SHOW_DSO_LABELS = "show_dso_labels"# New Variable
 
 # Defaults
 DEFAULT_BODIES = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"]
@@ -33,4 +38,26 @@ CONSTELLATIONS = {
     "Tau": "Taurus", "Tel": "Telescopium", "Tri": "Triangulum", "TrA": "Triangulum Australe",
     "Tuc": "Tucana", "UMa": "Ursa Major", "UMi": "Ursa Minor", "Vel": "Vela", "Vir": "Virgo",
     "Vol": "Volans", "Vul": "Vulpecula"
+}
+
+# Deep Sky Object Translation Mapping
+DSO_NAMES = {
+    "M 31": "Andromeda Galaxy",
+    "M 33": "Triangulum Galaxy",
+    "M 42": "Orion Nebula",
+    "M 45": "Pleiades",
+    "M 44": "Beehive Cluster",
+    "M 13": "Hercules Cluster",
+    "M 8": "Lagoon Nebula",
+    "M 20": "Trifid Nebula",
+    "M 1": "Crab Nebula",
+    "M 104": "Sombrero Galaxy",
+    "M 51": "Whirlpool Galaxy",
+    "Mel 20": "Alpha Persei Cluster",
+    "Mel 111": "Coma Star Cluster",
+    "GalCtr": "Galactic Center",
+    "LMC": "Large Magellanic Cloud",
+    "SMC": "Small Magellanic Cloud",
+    "NGC 869": "Double Cluster",
+    "NGC 884": "Double Cluster",
 }
