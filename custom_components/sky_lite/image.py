@@ -14,7 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 # Scale: Sun (3.0), Jupiter 75% (2.25), Mercury 10% (0.3)
 BODIES_CONF = {
     "Sun": ("#ffcc00", 3.0),
-    "Moon": ("#d9d9d9", 1.2),      # Light Gray (Bumped to 1.2 so it remains clearly visible)
+    "Moon": ("#fff7e6", 3.0),      # Matched Sun scale; warm illuminated white
     "Mercury": ("#8c8c94", 0.30),  # Dark rocky gray
     "Mars": ("#c1440e", 0.33),     # Rust Red
     "Venus": ("#e6e6c8", 0.40),    # Pale Yellowish-White
@@ -298,32 +298,25 @@ class SkyLiteMapImage(ImageEntity):
                         
                         # --- MOON
                         if body_name in ["Moon", "moon"]:
-                            # Ephem phase is illumination percentage (0-100)
                             illum = body_obj.phase / 100.0
                             
-                            # Determine waxing vs waning by comparing RA to the Sun
                             sun_obj = ephem.Sun()
                             sun_obj.compute(self.obs)
                             angle = (body_obj.ra - sun_obj.ra) % (2 * math.pi)
                             is_waxing = angle < math.pi
 
-                            # DYNAMIC DARK DISK: Persistent shadow mask across all themes
-                            # Bypasses h_c so the moon doesn't camouflage into the Light Theme sky
-                            m_bg = "#000000" if theme == "red" else "#020617"
+                            # DYNAMIC DARK DISK: Earthshine shadow instead of a black void
+                            m_bg = "#330000" if theme == "red" else "#1e293b"
                             svg.append(f'<circle cx="{px}" cy="{py}" r="{r}" fill="{m_bg}" stroke="{color}" stroke-width="0.3" filter="url(#halo)" />')
                             
-                            # X-axis offset for the terminator
                             mx = r * (1.0 - 2.0 * illum)
                             
-                            # Define the SVG sweep directions based on the phase cycle
                             sweep_outer = "1" if is_waxing else "0"
                             sweep_inner = "0" if is_waxing else "1"
                             
                             if illum <= 0.5:
-                                # Crescent Phase (Inner curve subtracts from the circle)
                                 path = f"M {px},{py-r} A {r},{r} 0 0,{sweep_outer} {px},{py+r} A {abs(mx)},{r} 0 0,{sweep_inner} {px},{py-r}"
                             else:
-                                # Gibbous Phase (Inner curve bulges outward to add to the circle)
                                 path = f"M {px},{py-r} A {r},{r} 0 0,{sweep_outer} {px},{py+r} A {abs(mx)},{r} 0 0,{sweep_outer} {px},{py-r}"
                                 
                             svg.append(f'<path d="{path}" fill="{color}" />')
