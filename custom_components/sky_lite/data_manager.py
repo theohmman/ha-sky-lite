@@ -3,10 +3,18 @@ from .const import DSO_NAMES
 
 _LOGGER = logging.getLogger(__name__)
 
+# ==========================================
+# CELESTIAL DATA SOURCE ATTRIBUTION
+# ==========================================
+# All background celestial geometries (Constellations, Stars, DSOs, Milky Way)
+# are sourced from the d3-celestial project by Olaf Frohn (ofrohn).
+# Upstream Repository: https://github.com/ofrohn/d3-celestial
+# Branch: master | Path: /data/
+# ==========================================
+
 class ConstellationManager:
     def __init__(self, hass):
         self.hass = hass
-        # Rerouted to a static read-only data directory within the component
         self.data_dir = hass.config.path("custom_components/sky_lite/data")
         self.const_file_path = os.path.join(self.data_dir, "constellations.lines.json")
         self.stars_file_path = os.path.join(self.data_dir, "stars.6.json")
@@ -20,7 +28,6 @@ class ConstellationManager:
 
     async def async_update_data(self):
         _LOGGER.debug("Sky Lite: Loading local celestial data...")
-        # Executes the synchronous file reads safely in a background thread
         await self.hass.async_add_executor_job(self._load_from_disk)
 
     def _load_from_disk(self):
