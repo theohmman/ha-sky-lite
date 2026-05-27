@@ -49,7 +49,7 @@ Sky Lite exposes an image entity (`image.sky_map`) and a sensor entity (`sensor.
 To display the map on top of your dynamic ephemeris table, add a new **Manual Card** to your dashboard and paste the following YAML:
 
 ```yaml
-type: vertical-stack
+type: custom:vertical-stack-in-card
 cards:
   - type: picture-entity
     entity: image.sky_map
@@ -57,49 +57,90 @@ cards:
     show_state: false
   - type: markdown
     content: >
-      <div style="font-size: 70%;">
+      <div align="center">
 
-      | Rise | Apex | Body | Alt | Az | Set |
+      <table style="width:100%; border:none; text-align:center;">
 
-      |:---:|:---:|:---:|:---:|:---:|:---:|
+      <tr>
 
-      {%- for body in state_attr('sensor.sky_map_legend', 'ephemeris_table') %}
+      {% for item in state_attr('sensor.sky_map_legend', 'scaled_bodies') %}
 
-      | {{ body.rise }} | {{ body.apex }} | {{ body.body }} | {{ body.alt }} | {{ body.az }} | {{ body.set }} |
+      <td style="border:none;">
 
-      {%- endfor %}
+      {{ item.icon }}<br><sub>{{ item.body }}</sub>
+
+      </td>
+
+      {% if loop.index % 6 == 0 and not loop.last %}
+
+      </tr><tr>
+
+      {% endif %}
+
+      {% endfor %}
+
+      </tr>
+
+      </table>
 
       </div>
 
-      <br>
 
-      **Moon Phase:** {{ state_attr('sensor.sky_map_legend', 'moon_phase') }} | **Moonlit:** {{ state_attr('sensor.sky_map_legend', 'moon_illumination') }}
+      ---
 
-      {{ state_attr('sensor.sky_map_legend', 'moon_event_1') }} | {{ state_attr('sensor.sky_map_legend', 'moon_event_2') }}
+      |Rise|Apex|Body|Alt|Az|Set|
+
+      | ---: | ---: | :--- | ---: | ---: | ---: |
+
+      {% for body in state_attr('sensor.sky_map_legend', 'ephemeris_table') -%}
+
+      | {{ body.rise }} | {{ body.apex }} | {{ body.body }} | {{ body.alt }} |
+      {{ body.az }} | {{ body.set }} |
+
+      {% endfor %}
+
+
+      {{ state_attr('sensor.sky_map_legend', 'moon_icon')
+      }}&nbsp;&nbsp;<br>**Moon Phase:** {{ state_attr('sensor.sky_map_legend',
+      'moon_phase') }} | **Moonlit:** {{ state_attr('sensor.sky_map_legend',
+      'moon_illumination') }}
+
+
+      {{ state_attr('sensor.sky_map_legend', 'moon_event_1') }} <br> {{
+      state_attr('sensor.sky_map_legend', 'moon_event_2') }}
+
 
       {% if state_attr('sensor.sky_map_legend', 'constellation_anomaly') %}
 
       <br>
 
-      <sub>{{ state_attr('sensor.sky_map_legend', 'constellation_anomaly') }}</sub>
+      <sub>{{ state_attr('sensor.sky_map_legend', 'constellation_anomaly')
+      }}</sub>
 
       {% endif %}
 
-      <br>
 
-      <br>
 
-      <div align="right"><sub><i>Updated at {{ states.sensor.sky_map_legend.last_updated | as_local | as_timestamp | timestamp_custom('%H:%M:%S') }}</i></sub></div>
+      ---
+
+      <div align="right"><sub><i>Updated at {{
+      states.sensor.sky_map_legend.last_updated | as_local | as_timestamp |
+      timestamp_custom('%H:%M:%S') }}</i></sub></div>
+
+```
 
 (Note: If you use custom dashboard plugins like stack-in-card, you can replace type: vertical-stack with type: custom:stack-in-card to completely erase the borders between the map and the table!)
+
+---
+
 📜 Attributions & Acknowledgments
 
-    Astronomical Engine: The core positional mathematics, lunar phasing, and transit calculations powering Sky Lite are driven by PyEphem, a scientific-grade Python library for high-precision astronomy.
+Astronomical Engine: The core positional mathematics, lunar phasing, and transit calculations powering Sky Lite are driven by PyEphem, a scientific-grade Python library for high-precision astronomy.
 
-    Constellation Data: Standardized abbreviations and mappings conform to the International Astronomical Union (IAU) designations.
+Constellation Data: Standardized abbreviations and mappings conform to the International Astronomical Union (IAU) designations.
 
-    Architectural Inspiration: A massive thank you to the ha_skyfield project by partofthething. This excellent custom component served as foundational inspiration for integrating complex astronomical tracking natively within the Home Assistant ecosystem.
+Architectural Inspiration: A massive thank you to the ha_skyfield project by partofthething. This excellent custom component served as foundational inspiration for integrating complex astronomical tracking natively within the Home Assistant ecosystem.
 
-    Visual Inspiration & GeoJSON Data: Conceptual inspiration for the map's aesthetic, SVG projection strategies, and the robust background GeoJSON data mapping the stars, DSOs, and Milky Way were drawn directly from the stunning d3-celestial JavaScript library by ofrohn.
+Visual Inspiration & GeoJSON Data: Conceptual inspiration for the map's aesthetic, SVG projection strategies, and the robust background GeoJSON data mapping the stars, DSOs, and Milky Way were drawn directly from the stunning d3-celestial JavaScript library by ofrohn.
 
-    General Inspiration: This project was built to bring the beauty of physical planetariums and mobile star-tracking applications directly into the smart home dashboard without the overhead of external APIs or iframe workarounds.
+General Inspiration: This project was built to bring the beauty of physical planetariums and mobile star-tracking applications directly into the smart home dashboard without the overhead of external APIs or iframe workarounds.
