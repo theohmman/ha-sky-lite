@@ -10,16 +10,14 @@ from .data_manager import ConstellationManager
 
 _LOGGER = logging.getLogger(__name__)
 
-# NASA/JPL Published Standard Colors + Realistic Proportionate Scaling
-# Scale: Sun (3.0), Jupiter 75% (2.25), Mercury 10% (0.3)
 BODIES_CONF = {
     "Sun": ("#ffcc00", 3.0),
-    "Moon": ("#fff7e6", 3.0),      # Matched Sun scale; warm illuminated white
-    "Mercury": ("#8c8c94", 0.30),  # Dark rocky gray
-    "Mars": ("#c1440e", 0.33),     # Rust Red
-    "Venus": ("#e6e6c8", 0.40),    # Pale Yellowish-White
-    "Saturn": ("#ead6b8", 1.91),   # Pale Gold
-    "Jupiter": ("#c88b3a", 2.25)   # Tan/Brown (75% of Sun)
+    "Moon": ("#fff7e6", 3.0),
+    "Mercury": ("#8c8c94", 0.30),
+    "Mars": ("#c1440e", 0.33),
+    "Venus": ("#e6e6c8", 0.40),
+    "Saturn": ("#ead6b8", 1.91),
+    "Jupiter": ("#c88b3a", 2.25)
 }
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -36,7 +34,6 @@ class SkyLiteMapImage(ImageEntity):
         self.content_type = "image/svg+xml"
         self.hass, self.entry = hass, entry
         
-        # REQUIRED BY HOME ASSISTANT: Prevents the entity from becoming "orphaned"
         self._attr_unique_id = f"{entry.entry_id}_map"
         self._attr_name = "Sky Map"
         
@@ -53,35 +50,33 @@ class SkyLiteMapImage(ImageEntity):
         self.obs = ephem.Observer()
         self.obs.lat, self.obs.lon, self.obs.elevation = str(self.lat_deg), str(self.lon_deg), self.elev
 
-        # Tell HA when the image was first created
         self._attr_image_last_updated = dt_util.utcnow()
 
     @property
     def extra_state_attributes(self):
-        """Fixes the 'Unknown' status by placing it in the attributes where it belongs,
-        preventing it from jamming Home Assistant's Websocket push notifications!"""
         opts = self.entry.options
         is_terrestrial = opts.get(CONF_PROJECTION_TERRESTRIAL, False)
         return {"Mode": "Terrestrial" if is_terrestrial else "Astronomical"}
 
     async def async_added_to_hass(self):
-        """Wire the map to listen ONLY to the master Coordinator brain."""
-        # The Coordinator in your integration already perfectly tracks the UI slider!
         self.async_on_remove(
             self.coordinator.async_add_listener(self._force_image_refresh)
         )
 
     @callback
     def _force_image_refresh(self):
-        """When the main brain ticks, annihilate the caches and push the UI update."""
         self._attr_image_last_updated = dt_util.utcnow()
-        
-        # Destroy BOTH caches
         self._cached_image = None  
         self._cached_svg = None    
-        
-        # Broadcast the timestamp change so the browser instantly refreshes the image
         self.async_write_ha_state()
+
+    def _get_comp_color(self, hex_color):
+        hc = hex_color.lstrip('#')
+        if len(hc) != 6: return "#ffffff"
+        r = 255 - int(hc[0:2], 16)
+        g = 255 - int(hc[2:4], 16)
+        b = 255 - int(hc[4:6], 16)
+        return f"#{r:02x}{g:02x}{b:02x}"
 
     def _radec_to_azalt(self, ra_deg, dec_deg, lst_rad, sin_lat, cos_lat):
         ra_rad, dec_rad = math.radians(ra_deg), math.radians(dec_deg)
@@ -139,6 +134,8 @@ class SkyLiteMapImage(ImageEntity):
             
             svg.append('<defs>')
             svg.append('<filter id="halo" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.4" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>')
+            svg.append('<filter id="dsoBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.7" /></filter>')
+            svg.append('<filter id="glowBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.5" /></filter>')
             svg.append('<clipPath id="skyClip"><circle cx="50" cy="50" r="41.86" /></clipPath>')
             svg.append(f'<radialGradient id="skyGrad" cx="50%" cy="50%" r="50%">')
             svg.append(f'<stop offset="30%" stop-color="{bg_color}" />')
@@ -152,11 +149,8 @@ class SkyLiteMapImage(ImageEntity):
             bg_fill = '"transparent"' if show_mw else '"url(#skyGrad)"'
             svg.append(f'<circle cx="50" cy="50" r="41.86" fill={bg_fill} stroke="{c_div}" stroke-width="0.4" />')
 
-            # --- 1. DIRECTIONAL INDICATORS ---
             for r_deg in range(0, 90, 15):
                 r_svg = 41.86 * ((90 - r_deg) / 90)
-                
-                # Only draw the grid ring if it is > 0 (The 0 degree rim is already drawn by the background map)
                 if r_deg > 0:
                     svg.append(f'<circle cx="50" cy="50" r="{r_svg}" fill="none" stroke="{c_div}" stroke-width="0.35" opacity="0.6" />')
                 
@@ -164,8 +158,6 @@ class SkyLiteMapImage(ImageEntity):
                 if opts.get(CONF_INVERT_PLOT, False): base_angle = (base_angle + 180) % 360
                 rad = math.radians(base_angle - 90)
                 tx, ty = 50 + r_svg * math.cos(rad), 50 + r_svg * math.sin(rad)
-                
-                # BUMPED: Font size to 2.0 and opacity to 0.85 for high legibility on mobile screens
                 svg.append(f'<text x="{tx}" y="{ty}" fill="{c_sec}" stroke="{bg_color}" stroke-width="0.5" paint-order="stroke fill" font-size="2.0" opacity="0.85" text-anchor="middle" dominant-baseline="middle">{r_deg}°</text>')
 
             for az in range(0, 360, 45):
@@ -175,20 +167,22 @@ class SkyLiteMapImage(ImageEntity):
                 if opts.get(CONF_INVERT_PLOT, False): base_angle = (base_angle + 180) % 360
                 rad = math.radians(base_angle - 90)
                 x2, y2 = 50 + 41.86 * math.cos(rad), 50 + 41.86 * math.sin(rad)
-                svg.append(f'<line x1="50" y1="50" x2="{x2}" y2="{y2}" stroke="{c_div}" stroke-width="{sw}" opacity="{opac}" stroke-dasharray="1,1.5" />')
+                
+                # Direction Lines Logic: Green for Equator and South, Blue for North
+                line_color = "#22c55e" if round(y2, 2) >= 50.00 else "#3b82f6"
+                
+                svg.append(f'<line x1="50" y1="50" x2="{x2}" y2="{y2}" stroke="{line_color}" stroke-width="{sw}" opacity="{opac}" stroke-dasharray="1,1.5" />')
 
             lst_rad = float(self.obs.sidereal_time())
             lat_rad = float(self.obs.lat)
             sin_lat, cos_lat = math.sin(lat_rad), math.cos(lat_rad)
 
-            # --- 2. SOLAR PATHS (Z-INDEX: BEHIND THE UNIVERSE) ---
             selected_bodies = opts.get(CONF_SELECTED_BODIES, DEFAULT_BODIES)
             if any(b.lower() == "sun" for b in selected_bodies):
                 sun_obj = ephem.Sun()
                 sun_obj.compute(self.obs)
                 current_dec = math.degrees(sun_obj.dec)
                 
-                # Dynamic Spectrum Color Math
                 t = max(0.0, min(1.0, (current_dec + 23.44) / 46.88))
                 if t <= 0.5:
                     t_sub = t * 2.0
@@ -197,12 +191,11 @@ class SkyLiteMapImage(ImageEntity):
                     t_sub = (t - 0.5) * 2.0
                     td_col = f"#{int(170 + t_sub * 85):02x}{int(255 - t_sub * 170):02x}00"
 
-                # (Dec, StrokeWidth, Opacity, Dash, Hex Color)
                 solar_lines = [
-                    (23.44, "0.35", "0.6", "2,2", "#ff5500"),       # Summer (Warm Orange)
-                    (-23.44, "0.35", "0.6", "2,2", "#00aaff"),      # Winter (Icy Blue)
-                    (0.0, "0.35", "0.6", "4,4", "#aaff00"),         # Equinox (Spring Green)
-                    (current_dec, "0.6", "0.85", "", td_col)        # Today (Interpolated)
+                    (23.44, "0.35", "0.6", "2,2", "#ff5500"),
+                    (-23.44, "0.35", "0.6", "2,2", "#00aaff"),
+                    (0.0, "0.35", "0.6", "4,4", "#aaff00"),
+                    (current_dec, "0.6", "0.85", "", td_col)
                 ]
                 
                 for dec, sw, opac, dash, col in solar_lines:
@@ -225,7 +218,6 @@ class SkyLiteMapImage(ImageEntity):
                         dash_attr = f' stroke-dasharray="{dash}"' if dash else ''
                         svg.append(f'<path d="M ' + ' L '.join(path_pts) + f'" fill="none" stroke="{col}" stroke-width="{sw}" opacity="{opac}"{dash_attr} filter="url(#halo)" />')
 
-            # --- 3. DEEP SKY OBJECTS ---
             if opts.get(CONF_SHOW_MILKY_WAY, False) and getattr(self, 'mw_data', None):
                 svg.append('<g clip-path="url(#skyClip)" filter="url(#mwBlur)">') 
                 for multipoly in self.mw_data:
@@ -270,8 +262,8 @@ class SkyLiteMapImage(ImageEntity):
                     az_deg, alt_deg = self._radec_to_azalt(dso.get("coords", [0, 0])[0], dso.get("coords", [0, 0])[1], lst_rad, sin_lat, cos_lat)
                     if alt_deg >= -7:
                         px, py = self.get_projection(az_deg, alt_deg)
-                        r, opac = max(0.4, 1.2 - (dso.get("mag", 6.0) * 0.15)), max(0.25, 0.85 - (dso.get("mag", 6.0) * 0.1))
-                        svg.append(f'<circle cx="{px}" cy="{py}" r="{r}" fill="#38bdf8" opacity="{opac}" filter="url(#halo)" />')
+                        r, opac = max(0.8, 1.6 - (dso.get("mag", 6.0) * 0.15)), max(0.35, 0.95 - (dso.get("mag", 6.0) * 0.1))
+                        svg.append(f'<circle cx="{px}" cy="{py}" r="{r}" fill="#38bdf8" opacity="{opac}" filter="url(#dsoBlur)" />')
                         if opts.get(CONF_SHOW_DSO_LABELS, False) and dso.get("name", ""):
                             svg.append(f'<text x="{px+1.5}" y="{py+1.5}" fill="{c_pri}" stroke="{h_c}" stroke-width="0.3" paint-order="stroke fill" font-size="1.4" opacity="0.65">{dso.get("name", "")}</text>')
 
@@ -283,7 +275,6 @@ class SkyLiteMapImage(ImageEntity):
                         cx, cy = sum(p[0] for p in pts)/len(pts), sum(p[1] for p in pts)/len(pts)
                         svg.append(f'<text x="{cx}" y="{cy}" fill="{c_pri}" stroke="{h_c}" stroke-width="0.4" paint-order="stroke fill" font-size="1.8" opacity="0.85" text-anchor="middle" dominant-baseline="middle">{label}</text>')
 
-            # --- 4. PLANETS (ON TOP) ---
             if selected_bodies:
                 ephem_map = {"Sun": ephem.Sun, "Moon": ephem.Moon, "Mercury": ephem.Mercury, "Venus": ephem.Venus, "Mars": ephem.Mars, "Jupiter": ephem.Jupiter, "Saturn": ephem.Saturn}
                 for body_name in selected_bodies:
@@ -295,8 +286,8 @@ class SkyLiteMapImage(ImageEntity):
                     if alt >= -7:
                         px, py = self.get_projection(az, alt)
                         color, r = BODIES_CONF.get(body_name, ("#ffffff", 2.0))
+                        comp_color = self._get_comp_color(color)
                         
-                        # --- MOON
                         if body_name in ["Moon", "moon"]:
                             illum = body_obj.phase / 100.0
                             
@@ -305,9 +296,13 @@ class SkyLiteMapImage(ImageEntity):
                             angle = (body_obj.ra - sun_obj.ra) % (2 * math.pi)
                             is_waxing = angle < math.pi
 
-                            # DYNAMIC DARK DISK: Earthshine shadow instead of a black void
                             m_bg = "#330000" if theme == "red" else "#1e293b"
-                            svg.append(f'<circle cx="{px}" cy="{py}" r="{r}" fill="{m_bg}" stroke="{color}" stroke-width="0.3" filter="url(#halo)" />')
+                            
+                            # Independent underlying glow - Moon specific, see Solar System Objects for others
+                            svg.append(f'<circle cx="{px}" cy="{py}" r="{r*1.5}" fill="{comp_color}" filter="url(#glowBlur)" opacity="0.8" />')
+                            
+                            # Sharp solid mask on top
+                            svg.append(f'<circle cx="{px}" cy="{py}" r="{r}" fill="{m_bg}" stroke="{color}" stroke-width="0.3" />')
                             
                             mx = r * (1.0 - 2.0 * illum)
                             
@@ -321,11 +316,12 @@ class SkyLiteMapImage(ImageEntity):
                                 
                             svg.append(f'<path d="{path}" fill="{color}" />')
                         else:
+                            # Independent underlying glow - Solar System Objects other than the Moon
+                            svg.append(f'<circle cx="{px}" cy="{py}" r="{r*1.5}" fill="{comp_color}" filter="url(#glowBlur)" opacity="0.8" />')
+                            
+                            # Sharp solid mask on top
+                            svg.append(f'<circle cx="{px}" cy="{py}" r="{r}" fill="{color}" />')
 
-                            svg.append(f'<circle cx="{px}" cy="{py}" r="{r}" fill="{color}" filter="url(#halo)" />')
-                        # Labels intentionally removed per requirements
-
-            # --- 5. COMPASS & HUD OVERLAY ---
             if opts.get(CONF_SHOW_COMPASS, True):
                 for label, az in [("N",0), ("NE",45), ("E",90), ("SE",135), ("S",180), ("SW",225), ("W",270), ("NW",315)]:
                     base_angle = (360 - az) if not is_terrestrial else az
@@ -337,31 +333,24 @@ class SkyLiteMapImage(ImageEntity):
                     txt_c, opac = (c_pri, "1.0") if is_focus else (c_sec, "0.7")
                     
                     if is_focus:
-                        # The \u1430 Human Observer
-                        # DYNAMIC SPACING: 3.5 clears the E/W line in Astro, 1.8 tucks it against the Zenith in Terr
                         z_offset = 1.8 if is_terrestrial else 3.5
                         cx, cy = 50 + z_offset * math.cos(rad), 50 + z_offset * math.sin(rad)
                         
-                        # DYNAMIC FLIP: 
-                        # Astronomical: Head looks up to Zenith (-90)
-                        # Terrestrial: Feet plant down toward Zenith (+90)
                         rot_offset = 90 if is_terrestrial else -90
                         rot = math.degrees(rad) + rot_offset
                         
                         svg.append(f'<text x="{cx}" y="{cy}" fill="{c_pri}" stroke="{h_c}" stroke-width="0.3" paint-order="stroke fill" font-size="4.5" text-anchor="middle" dominant-baseline="middle" transform="rotate({rot} {cx} {cy})" filter="url(#halo)" opacity="0.9">\u1430</text>')
                         
-                    # THE MISSING LINE: This actually draws the N, S, E, W labels!
                     svg.append(f'<text x="{lx}" y="{ly}" fill="{txt_c}" stroke="{h_c}" stroke-width="0.6" paint-order="stroke fill" stroke-linejoin="round" font-size="{fs}" text-anchor="middle" dominant-baseline="middle" font-weight="{fw}" opacity="{opac}">{label}</text>')
 
-            # --- CURVED HUD TIMESTAMP ---
             now_local = datetime.now().strftime("%Y%m%d.%H:%M:%S")
             mode_str = "T" if is_terrestrial else "A"
             hud_str = f"{mode_str}: {now_local}"
             
             svg.append('<path id="hudCurve" d="M 3.5,50 A 46.5,46.5 0 0,1 96.5,50" fill="none" stroke="none" />')
             
-            # Adjusted startOffset from 25% to 37.5% (Precisely bisecting NW and North)
-            svg.append(f'<text fill="{c_sec}" font-size="1.6" opacity="0.75"><textPath href="#hudCurve" startOffset="37.5%" text-anchor="middle">{hud_str}</textPath></text>')
+            # Increased font-size to 2.6
+            svg.append(f'<text fill="{c_sec}" font-size="2.6" opacity="0.75"><textPath href="#hudCurve" startOffset="37.5%" text-anchor="middle">{hud_str}</textPath></text>')
 
             svg.append('</svg>')
             svg_bytes = "".join(svg).encode('utf-8')
