@@ -1,0 +1,6 @@
+# Ignore downloaded cache data
+custom_components/sky_lite/cache/
+
+# Standard Python ignores
+__pycache__/
+*.pyc
