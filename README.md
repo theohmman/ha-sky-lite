@@ -130,8 +130,8 @@ This translates complex seasonal orbital tracking into an intuitive, at-a-glance
 
 ## 📜 Attributions & Acknowledgments
 
-* **Astronomical Engine:** The core positional mathematics, lunar phasing, and transit calculations powering Sky Lite are driven by PyEphem, a scientific-grade Python library for high-precision astronomy.
-* **Constellation Data:** Standardized abbreviations and mappings conform to the International Astronomical Union (IAU) designations.
-* **Architectural Inspiration:** A massive thank you to the `ha_skyfield` project by partofthething. This excellent custom component served as foundational inspiration for integrating complex astronomical tracking natively within the Home Assistant ecosystem.
-* **Visual Inspiration & GeoJSON Data:** Conceptual inspiration for the map's aesthetic, SVG projection strategies, and the robust background GeoJSON data mapping the stars, DSOs, and Milky Way were drawn directly from the stunning `d3-celestial` JavaScript library by ofrohn.
+* **Astronomical Engine:** The core positional mathematics, lunar phasing, and transit calculations powering Sky Lite are driven by [PyEphem](https://rhodesmill.org/pyephem/), a scientific-grade Python library for high-precision astronomy.
+* **Constellation Data:** Standardized abbreviations and mappings conform to the [International Astronomical Union (IAU)](https://www.iau.org/) designations.
+* **Architectural Inspiration:** A massive thank you to the [ha_skyfield](https://github.com/partofthething/ha_skyfield) project by partofthething. This excellent custom component served as foundational inspiration for integrating complex astronomical tracking natively within the Home Assistant ecosystem.
+* **Visual Inspiration & GeoJSON Data:** Conceptual inspiration for the map's aesthetic, SVG projection strategies, and the robust background GeoJSON data mapping the stars, DSOs, and Milky Way were drawn directly from the stunning [d3-celestial](https://github.com/ofrohn/d3-celestial) JavaScript library by ofrohn.
 * **Hardware Philosophy:** General inspiration for this project was born from a desire to work around dependency overheads of ARM processors, ensuring fluid celestial rendering even on constrained environments like the Raspberry Pi 4.
