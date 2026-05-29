@@ -1,4 +1,4 @@
-# Sky Lite for Home Assistant (v2.0.5)
+# Sky Lite for Home Assistant (v2.0.6)
 
 Sky Lite is a lightweight, highly performant custom integration for Home Assistant that generates a real-time, SVG-based celestial map for your dashboard. 
 
