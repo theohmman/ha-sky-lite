@@ -48,87 +48,53 @@ Sky Lite exposes an image entity (`image.sky_map`) and a sensor entity (`sensor.
 To display the map on top of your dynamic ephemeris table, add a new **Manual Card** to your dashboard and paste the following YAML:
 
 ```yaml
-type: custom:vertical-stack-in-card
+type: vertical-stack
 cards:
   - type: picture-entity
     entity: image.sky_map
     show_name: false
     show_state: false
   - type: markdown
-    content: >
+    content: |
       <div align="center">
-
       <table style="width:100%; border:none; text-align:center;">
-
       <tr>
-
       {% for item in state_attr('sensor.sky_map_legend', 'scaled_bodies') %}
-
       <td style="border:none;">
-
       {{ item.icon }}<br><sub>{{ item.body }}</sub>
-
       </td>
-
       {% if loop.index % 6 == 0 and not loop.last %}
-
       </tr><tr>
-
       {% endif %}
-
       {% endfor %}
-
       </tr>
-
       </table>
-
       </div>
-
 
       ---
 
       |Rise|Apex|Body|Alt|Az|Set|
-
       | ---: | ---: | :--- | ---: | ---: | ---: |
-
       {% for body in state_attr('sensor.sky_map_legend', 'ephemeris_table') -%}
-
-      | {{ body.rise }} | {{ body.apex }} | {{ body.body }} | {{ body.alt }} |
-      {{ body.az }} | {{ body.set }} |
-
+      | {{ body.rise }} | {{ body.apex }} | {{ body.body }} | {{ body.alt }} | {{ body.az }} | {{ body.set }} |
       {% endfor %}
 
+      {{ state_attr('sensor.sky_map_legend', 'moon_icon') }}&nbsp;&nbsp;<br>**Moon Phase:** {{ state_attr('sensor.sky_map_legend', 'moon_phase') }} | **Moonlit:** {{ state_attr('sensor.sky_map_legend', 'moon_illumination') }}
 
-      {{ state_attr('sensor.sky_map_legend', 'moon_icon')
-      }}&nbsp;&nbsp;<br>**Moon Phase:** {{ state_attr('sensor.sky_map_legend',
-      'moon_phase') }} | **Moonlit:** {{ state_attr('sensor.sky_map_legend',
-      'moon_illumination') }}
-
-
-      {{ state_attr('sensor.sky_map_legend', 'moon_event_1') }} <br> {{
-      state_attr('sensor.sky_map_legend', 'moon_event_2') }}
-
+      {{ state_attr('sensor.sky_map_legend', 'moon_event_1') }} <br> {{ state_attr('sensor.sky_map_legend', 'moon_event_2') }}
 
       {% if state_attr('sensor.sky_map_legend', 'constellation_anomaly') %}
-
       <br>
-
-      <sub>{{ state_attr('sensor.sky_map_legend', 'constellation_anomaly')
-      }}</sub>
-
+      <sub>{{ state_attr('sensor.sky_map_legend', 'constellation_anomaly') }}</sub>
       {% endif %}
-
-
 
       ---
 
-      <div align="right"><sub><i>Updated at {{
-      states.sensor.sky_map_legend.last_updated | as_local | as_timestamp |
-      timestamp_custom('%H:%M:%S') }}</i></sub></div>
+      <div align="right"><sub><i>Updated at {{ states.sensor.sky_map_legend.last_updated | as_local | as_timestamp | timestamp_custom('%H:%M:%S') }}</i></sub></div>
 
 ```
 
-(Note: If you use custom dashboard plugins like stack-in-card, you can replace type: vertical-stack with type: custom:stack-in-card to completely erase the borders between the map and the table)
+*(Note: If you use custom dashboard plugins like stack-in-card, you can replace `type: vertical-stack` with `type: custom:vertical-stack-in-card` to completely erase the borders between the map and the table)*
 
 ---
 
@@ -137,31 +103,39 @@ cards:
 Sky Lite was engineered to bridge the gap between complex 3D astronomical mathematics and 2D dashboard constraints. To prevent spatial disorientation, the UI deliberately utilizes physical associations and subconscious cues to anchor the user's experience.
 
 ### The Horizon Anchor
+
 Standard, uniform grid lines can be difficult to parse at a glance. Sky Lite color-codes its azimuth directional lines relative to the equatorial plane:
+
 * **Green Lines:** Vectors pointing to or below the equatorial plane, representing the Earth and the horizon.
 * **Blue Lines:** Vectors pointing into the upper hemisphere, representing the open sky.
 This distinct separation provides a subconscious visual anchor, allowing users to immediately orient "up" and "down" without needing to read numerical degree labels.
 
 ### Physicality of Projection
+
 Switching between a map view and a planetarium view requires the user to flip their spatial mental model. Sky Lite assists this transition using a dynamic Observer icon (`ᐰ` - a nod to the Stargate franchise's symbol for Earth) whose position mimics the user's physical posture; the halo as the head and bottom of the inverted "V" as the feet:
+
 * **Terrestrial Mode (Map View):** The observer is positioned above the horizon facing the direction at the top, simulating the user standing on the ground and looking *down* at the screen as a physical map. Celestial bodies are plotted as if they fell straight down from space onto the surface of the Earth.
 * **Astronomical Mode (Planetarium View):** The observer shifts below the horizon line, simulating the user lying on the ground—feet facing the bottom, head pointing to the top—holding the screen up to the sky. The rendering flips so that the visual points align perfectly with where the physical bodies exist in the night sky above them.
 
 ### Seasonal Color Mapping
+
 Tracking the shifting path of the sun requires understanding its changing declination across the seasons. Instead of using arbitrary colors or requiring the user to read raw numerical degrees, the solar paths are rendered using a temperature-association gradient:
+
 * **Winter Solstice (-23.44°):** Icy Blue
 * **Equinoxes (0.0°):** Spring Green
 * **Summer Solstice (+23.44°):** Warm Orange
 This translates complex seasonal orbital tracking into an intuitive, at-a-glance visual cue.
 
-📜 Attributions & Acknowledgments
+---
 
-Astronomical Engine: The core positional mathematics, lunar phasing, and transit calculations powering Sky Lite are driven by PyEphem, a scientific-grade Python library for high-precision astronomy.
+## 📜 Attributions & Acknowledgments
 
-Constellation Data: Standardized abbreviations and mappings conform to the International Astronomical Union (IAU) designations.
+* **Astronomical Engine:** The core positional mathematics, lunar phasing, and transit calculations powering Sky Lite are driven by PyEphem, a scientific-grade Python library for high-precision astronomy.
+* **Constellation Data:** Standardized abbreviations and mappings conform to the International Astronomical Union (IAU) designations.
+* **Architectural Inspiration:** A massive thank you to the `ha_skyfield` project by partofthething. This excellent custom component served as foundational inspiration for integrating complex astronomical tracking natively within the Home Assistant ecosystem.
+* **Visual Inspiration & GeoJSON Data:** Conceptual inspiration for the map's aesthetic, SVG projection strategies, and the robust background GeoJSON data mapping the stars, DSOs, and Milky Way were drawn directly from the stunning `d3-celestial` JavaScript library by ofrohn.
+* **Hardware Philosophy:** General inspiration for this project was born from a desire to work around dependency overheads of ARM processors, ensuring fluid celestial rendering even on constrained environments like the Raspberry Pi 4.
 
-Architectural Inspiration: A massive thank you to the ha_skyfield project by partofthething. This excellent custom component served as foundational inspiration for integrating complex astronomical tracking natively within the Home Assistant ecosystem.
+```
 
-Visual Inspiration & GeoJSON Data: Conceptual inspiration for the map's aesthetic, SVG projection strategies, and the robust background GeoJSON data mapping the stars, DSOs, and Milky Way were drawn directly from the stunning d3-celestial JavaScript library by ofrohn.
-
-General Inspiration: This project was built to work around a dependency issue of the ha_skyfield on ARM processors and currently only tested on a Raspberry Pi 4.
+```
