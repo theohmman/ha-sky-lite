@@ -5,6 +5,6 @@
   "config_flow": true,
   "documentation": "https://github.com/theohmman/ha-sky-lite",
   "iot_class": "local_polling",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "requirements": ["ephem"]
 }
