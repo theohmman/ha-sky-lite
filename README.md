@@ -135,7 +135,3 @@ This translates complex seasonal orbital tracking into an intuitive, at-a-glance
 * **Architectural Inspiration:** A massive thank you to the `ha_skyfield` project by partofthething. This excellent custom component served as foundational inspiration for integrating complex astronomical tracking natively within the Home Assistant ecosystem.
 * **Visual Inspiration & GeoJSON Data:** Conceptual inspiration for the map's aesthetic, SVG projection strategies, and the robust background GeoJSON data mapping the stars, DSOs, and Milky Way were drawn directly from the stunning `d3-celestial` JavaScript library by ofrohn.
 * **Hardware Philosophy:** General inspiration for this project was born from a desire to work around dependency overheads of ARM processors, ensuring fluid celestial rendering even on constrained environments like the Raspberry Pi 4.
-
-```
-
-```
