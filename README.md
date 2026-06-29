@@ -121,9 +121,9 @@ Switching between a map view and a planetarium view requires the user to flip th
 
 Tracking the shifting path of the sun requires understanding its changing declination across the seasons. Instead of using arbitrary colors or requiring the user to read raw numerical degrees, the solar paths are rendered using a temperature-association gradient:
 
-* **Winter Solstice (-23.44°):** Icy Blue
-* **Equinoxes (0.0°):** Spring Green
-* **Summer Solstice (+23.44°):** Warm Orange
+* **Winter Solstice ** Icy Blue
+* **Equinoxes ** Spring Green
+* **Summer Solstice ** Warm Orange
 This translates complex seasonal orbital tracking into an intuitive, at-a-glance visual cue.
 
 ---
