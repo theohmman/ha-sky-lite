@@ -1,7 +1,4 @@
 {
   "name": "Sky Lite",
-  "render_readme": true,
-  "hacs": "1.6.0",
-  "domain": "sky_lite",
-  "dependencies": []
+  "render_readme": true
 }
