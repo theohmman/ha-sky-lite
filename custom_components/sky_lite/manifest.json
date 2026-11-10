@@ -6,6 +6,6 @@
   "documentation": "https://github.com/theohmman/ha-sky-lite",
   "issue_tracker": "https://github.com/theohmman/ha-sky-lite/issues",
   "iot_class": "local_polling",
-  "version": "2611.1",
+  "version": "2611.2",
   "requirements": ["ephem"]
 }
