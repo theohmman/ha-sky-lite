@@ -1,0 +1,61 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sky Lite Observatory Setup",
+        "description": "Enter the coordinates and elevation for your observatory.",
+        "data": {
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "elevation": "Elevation (meters)"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Only a single instance of Sky Lite is allowed."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Sky Lite Options",
+        "description": "Configure theme, refresh rate, time format, and celestial layers.",
+        "data": {
+          "theme_mode": "Theme Mode",
+          "update_interval": "Update Interval (Minutes)",
+          "time_format": "Sky Glance Time Format",
+          "show_compass": "Show Compass & Observer",
+          "invert_plot": "Invert Plot (180°)",
+          "projection_terrestrial": "Terrestrial Mode (Project to Ground)",
+          "show_stars": "Show Stars",
+          "show_milky_way": "Show Milky Way",
+          "show_dso": "Show Deep Sky Objects (DSOs)",
+          "show_dso_labels": "Show DSO Labels",
+          "show_constellations": "Show Constellation Lines",
+          "show_const_labels": "Show Constellation Labels",
+          "selected_bodies": "Solar System Objects"
+        }
+      }
+    }
+  },
+  "selector": {
+    "theme_mode": {
+      "options": {
+        "system": "System Default",
+        "light": "Light Mode",
+        "dark": "Dark Mode",
+        "red": "Red (Preserve Night Vision)"
+      }
+    },
+    "update_interval": {
+      "options": {
+        "1": "1 Minute",
+        "5": "5 Minutes",
+        "10": "10 Minutes",
+        "15": "15 Minutes",
+        "30": "30 Minutes",
+        "60": "60 Minutes"
+      }
+    }
+  }
+}

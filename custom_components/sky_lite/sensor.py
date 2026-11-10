@@ -2,19 +2,9 @@ import logging
 import base64
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .const import DOMAIN, CONF_PROJECTION_TERRESTRIAL
+from .const import DOMAIN, CONF_PROJECTION_TERRESTRIAL, BODIES_CONF
 
 _LOGGER = logging.getLogger(__name__)
-
-BODIES_CONF = {
-    "Sun": ("#ffcc00", 3.0),
-    "Moon": ("#fff7e6", 3.0),
-    "Mercury": ("#8c8c94", 0.30),
-    "Mars": ("#c1440e", 0.33),
-    "Venus": ("#e6e6c8", 0.40),
-    "Saturn": ("#ead6b8", 1.91),
-    "Jupiter": ("#c88b3a", 2.25)
-}
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     coordinator = hass.data[DOMAIN][config_entry.entry_id]
@@ -40,19 +30,19 @@ class SkyLiteLegendSensor(CoordinatorEntity, SensorEntity):
 
         opts = self.entry.options
         is_terr = opts.get(CONF_PROJECTION_TERRESTRIAL, False)
-        
+
         moon_phase = data.get("moon_phase", 0)
         moon_waning = data.get("moon_waning", False)
-        
+
         if moon_phase < 0.02: phase_name = "New Moon"
         elif moon_phase > 0.98: phase_name = "Full Moon"
         elif moon_waning: phase_name = "Waning Gibbous" if moon_phase > 0.5 else "Waning Crescent"
         else: phase_name = "Waxing Crescent" if moon_phase < 0.5 else "Waxing Gibbous"
-        
+
         table_rows = []
         scaled_bodies = []
         moon_icon_html = ""
-        
+
         for body, b_data in data["bodies"].items():
             # 1. EPHEMERIS FILTER: Keep Sun/Moon always. Keep planets only if alt > -7.0
             if body not in ["Sun", "Moon"] and b_data["alt"] <= -7.0:
@@ -60,7 +50,7 @@ class SkyLiteLegendSensor(CoordinatorEntity, SensorEntity):
 
             # Ephemeris Text-Only Row
             table_rows.append({
-                "body": f"**{body}**", 
+                "body": f"**{body}**",
                 "alt": f"{b_data['alt']:.1f}°",
                 "az": f"{b_data['az']:.1f}°",
                 "rise": b_data.get("rise", "--:--"),
@@ -72,7 +62,7 @@ class SkyLiteLegendSensor(CoordinatorEntity, SensorEntity):
             color, scale = BODIES_CONF.get(body, ("#ffffff", 2.0))
             r = max(scale * 3.5, 1.5)
             box, center = 24, 12
-            
+
             if body.lower() == "moon":
                 # MOON FOOTER: Always generate the Moon icon regardless of altitude
                 illum = moon_phase
@@ -80,17 +70,17 @@ class SkyLiteLegendSensor(CoordinatorEntity, SensorEntity):
                 is_waxing = not moon_waning
                 sweep_out = "1" if is_waxing else "0"
                 sweep_in = "0" if is_waxing else "1"
-                
+
                 if illum <= 0.5:
                     path = f"M {center},{center-r} A {r},{r} 0 0,{sweep_out} {center},{center+r} A {abs(mx)},{r} 0 0,{sweep_in} {center},{center-r}"
                 else:
                     path = f"M {center},{center-r} A {r},{r} 0 0,{sweep_out} {center},{center+r} A {abs(mx)},{r} 0 0,{sweep_out} {center},{center-r}"
-                
+
                 svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{box}" height="{box}" viewBox="0 0 {box} {box}"><circle cx="{center}" cy="{center}" r="{r}" fill="#1e293b" stroke="{color}" stroke-width="0.5"/><path d="{path}" fill="{color}"/></svg>'
                 b64_svg = base64.b64encode(svg.encode('utf-8')).decode('utf-8')
-                
+
                 moon_icon_html = f'<img src="data:image/svg+xml;base64,{b64_svg}" alt="Moon" style="vertical-align: middle; margin-right: 4px;" />'
-            
+
             else:
                 # SCALED BODIES (MIDDLE TABLE): Only append if altitude > -7.0
                 if b_data["alt"] > -7.0:
@@ -105,7 +95,7 @@ class SkyLiteLegendSensor(CoordinatorEntity, SensorEntity):
 
         next_new = data.get("next_new_moon", "--")
         next_full = data.get("next_full_moon", "--")
-        
+
         if next_new < next_full:
             moon_event_1 = f"**Next New Moon:** {next_new}"
             moon_event_2 = f"**Next Full Moon:** {next_full}"
@@ -122,8 +112,8 @@ class SkyLiteLegendSensor(CoordinatorEntity, SensorEntity):
             "ephemeris_table": table_rows,
             "scaled_bodies": scaled_bodies
         }
-        
+
         if is_terr:
             attr_data["constellation_anomaly"] = "*Note: Terrestrial Mode is ON; constellations are mirrored (projected to the ground)."
-            
+
         return attr_data

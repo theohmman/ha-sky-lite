@@ -7,15 +7,26 @@ CONF_INVERT_PLOT = "invert_plot"
 CONF_SHOW_CONSTELLATIONS = "show_constellations"
 CONF_SHOW_CONST_LABELS = "show_const_labels"
 CONF_SELECTED_BODIES = "selected_bodies"
-CONF_UPDATE_INTERVAL = "update_interval" 
-CONF_PROJECTION_TERRESTRIAL = "projection_terrestrial" 
+CONF_UPDATE_INTERVAL = "update_interval"
+CONF_PROJECTION_TERRESTRIAL = "projection_terrestrial"
 CONF_SHOW_STARS = "show_stars"
 CONF_SHOW_DSO = "show_dso"
 CONF_SHOW_MILKY_WAY = "show_milky_way"
-CONF_SHOW_DSO_LABELS = "show_dso_labels"# New Variable
+CONF_SHOW_DSO_LABELS = "show_dso_labels"
+CONF_TIME_FORMAT = "time_format"
 
-# Defaults
+# Defaults & Shared Body Visual Config
 DEFAULT_BODIES = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"]
+
+BODIES_CONF = {
+    "Sun": ("#ffcc00", 3.0),
+    "Moon": ("#fff7e6", 3.0),
+    "Mercury": ("#8c8c94", 0.30),
+    "Mars": ("#c1440e", 0.33),
+    "Venus": ("#e6e6c8", 0.40),
+    "Saturn": ("#ead6b8", 1.91),
+    "Jupiter": ("#c88b3a", 2.25)
+}
 
 # IAU Constellation Abbreviation Mapping
 CONSTELLATIONS = {
