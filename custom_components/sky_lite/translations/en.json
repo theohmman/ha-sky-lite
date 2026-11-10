@@ -1,24 +1,39 @@
 {
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sky Lite Observatory Setup",
+        "description": "Enter the coordinates and elevation for your observatory.",
+        "data": {
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "elevation": "Elevation (meters)"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Only a single instance of Sky Lite is allowed."
+    }
+  },
   "options": {
     "step": {
       "init": {
+        "title": "Sky Lite Options",
+        "description": "Configure theme, refresh rate, time format, and celestial layers.",
         "data": {
           "theme_mode": "Theme Mode",
           "update_interval": "Update Interval (Minutes)",
-          "show_compass": "🗺️ LAYOUT: Show Compass Letters",
-          "invert_plot": "🗺️ LAYOUT: Invert North/South",
-          "projection_terrestrial": "🗺️ LAYOUT: Terrestrial Map: Invert East/West",
-          "show_stars": "✨ CELESTIAL: Show Background Stars",
-          "show_milky_way": "✨ CELESTIAL: Show Milky Way Band",
-          "show_dso": "✨ CELESTIAL: Show Deep Sky Objects",
-          "show_dso_labels": "↳ Show Deep Sky Labels",
-          "show_constellations": "✨ CELESTIAL: Show Constellation Lines",
-          "show_const_labels": "↳ Show Constellation Labels",
-          "selected_bodies": "🪐 SOLAR SYSTEM: Select Visible Objects"
-        },
-        "data_description": {
-          "show_const_labels": "Requires Constellation Lines to be enabled.",
-          "selected_bodies": "Select the planets, Sun, and Moon you want rendered on the map."
+          "time_format": "Sky Glance Time Format",
+          "show_compass": "Show Compass & Observer",
+          "invert_plot": "Invert Plot (180°)",
+          "projection_terrestrial": "Terrestrial Mode (Project to Ground)",
+          "show_stars": "Show Stars",
+          "show_milky_way": "Show Milky Way",
+          "show_dso": "Show Deep Sky Objects (DSOs)",
+          "show_dso_labels": "Show DSO Labels",
+          "show_constellations": "Show Constellation Lines",
+          "show_const_labels": "Show Constellation Labels",
+          "selected_bodies": "Solar System Objects"
         }
       }
     }
@@ -27,10 +42,19 @@
     "theme_mode": {
       "options": {
         "system": "System Default",
-        "auto": "Auto (Day/Night)",
         "light": "Light Mode",
         "dark": "Dark Mode",
         "red": "Red (Preserve Night Vision)"
+      }
+    },
+    "update_interval": {
+      "options": {
+        "1": "1 Minute",
+        "5": "5 Minutes",
+        "10": "10 Minutes",
+        "15": "15 Minutes",
+        "30": "30 Minutes",
+        "60": "60 Minutes"
       }
     }
   }
