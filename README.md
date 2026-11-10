@@ -1,4 +1,4 @@
-# Sky Lite for Home Assistant (v2611.1)
+# Sky Lite for Home Assistant (v2611.2)
 
 Sky Lite is a lightweight, highly performant custom integration for Home Assistant that generates real-time, SVG-based celestial visualizations and ephemeris telemetry for your dashboard.
 
