@@ -33,7 +33,8 @@
           "show_dso_labels": "Show DSO Labels",
           "show_constellations": "Show Constellation Lines",
           "show_const_labels": "Show Constellation Labels",
-          "selected_bodies": "Solar System Objects"
+          "selected_bodies": "Solar System Objects",
+          "show_body_labels": "Show Solar System Symbols (Planets, Sun & Moon Tracks)"
         }
       }
     }

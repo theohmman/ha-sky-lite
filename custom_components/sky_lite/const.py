@@ -7,6 +7,7 @@ CONF_INVERT_PLOT = "invert_plot"
 CONF_SHOW_CONSTELLATIONS = "show_constellations"
 CONF_SHOW_CONST_LABELS = "show_const_labels"
 CONF_SELECTED_BODIES = "selected_bodies"
+CONF_SHOW_BODY_LABELS = "show_body_labels"
 CONF_UPDATE_INTERVAL = "update_interval"
 CONF_PROJECTION_TERRESTRIAL = "projection_terrestrial"
 CONF_SHOW_STARS = "show_stars"
@@ -18,14 +19,27 @@ CONF_TIME_FORMAT = "time_format"
 # Defaults & Shared Body Visual Config
 DEFAULT_BODIES = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"]
 
+# Hierarchical Sizing:
+# Sun diameter = 15° of elevation (6.98 SVG units -> r = 3.49)
+# Moon = 0.90 * Sun (r = 3.14)
+# Smallest Planet (Mercury) = +0.25 larger than Sirius (0.75 + 0.25 = 1.00)
 BODIES_CONF = {
-    "Sun": ("#ffcc00", 3.0),
-    "Moon": ("#fff7e6", 3.0),
-    "Mercury": ("#8c8c94", 0.30),
-    "Mars": ("#c1440e", 0.33),
-    "Venus": ("#e6e6c8", 0.40),
-    "Saturn": ("#ead6b8", 1.91),
-    "Jupiter": ("#c88b3a", 2.25)
+    "Sun": ("#ffcc00", 3.49),
+    "Moon": ("#fff7e6", 3.14),
+    "Mercury": ("#8c8c94", 1.00),
+    "Mars": ("#c1440e", 1.10),
+    "Venus": ("#e6e6c8", 1.25),
+    "Saturn": ("#ead6b8", 2.15),
+    "Jupiter": ("#c88b3a", 2.50)
+}
+
+# Monochrome text-mode Unicode symbols (\ufe0e prevents mobile emoji hijacking)
+PLANET_SYMBOLS = {
+    "Mercury": "☿\ufe0e",
+    "Venus": "♀\ufe0e",
+    "Mars": "♂\ufe0e",
+    "Jupiter": "♃\ufe0e",
+    "Saturn": "♄\ufe0e",
 }
 
 # IAU Constellation Abbreviation Mapping

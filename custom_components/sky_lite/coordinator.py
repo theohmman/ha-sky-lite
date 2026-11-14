@@ -13,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 # ==========================================
 # Core ephemeris powered by PyEphem (Brandon Rhodes): https://rhodesmill.org/pyephem/
 # Moon Bright Limb Position Angle (chi) & Parallactic Angle (q) derived from:
-# Jean Meeus, "Astronomical Algorithms", 2nd Edition (Ch. 14 & Ch. 48).
+# Jean Meeus, "Astronomical Algorithms", 2nd Edition (Ch. 14 & Ch. 48)[cite: 22].
 # ==========================================
 
 class SkyLiteCoordinator(DataUpdateCoordinator):
@@ -178,7 +178,11 @@ class SkyLiteCoordinator(DataUpdateCoordinator):
         }
 
     def _compute_lunar_pass_cache(self, m_rise, m_set, has_valid_pass, start_of_day_utc, moon):
-        """Compute 51-point lunar trajectory once per active lunar pass."""
+        """
+        Compute lunar trajectory once per active lunar pass for both Sky Glance and Sky Map.
+        Uses geometric pressure=0 for the Sky Map trajectory so start and end points
+        land at exact 0.00° altitude without atmospheric refraction kinks.
+        """
         self.obs.horizon = '0:00'
         self.obs.date = m_rise
         moon.compute(self.obs)
@@ -189,13 +193,45 @@ class SkyLiteCoordinator(DataUpdateCoordinator):
         moon_set_az = math.degrees(moon.az)
 
         moon_arc_az = []
+        moon_map_pts = []
         total_sec_m = (m_set.datetime() - m_rise.datetime()).total_seconds()
         if total_sec_m > 0:
+            # 1. Azimuth array for Sky Glance dome
             for i in range(51):
                 eval_time = m_rise.datetime() + timedelta(seconds=(total_sec_m / 50.0) * i)
                 self.obs.date = eval_time
                 moon.compute(self.obs)
                 moon_arc_az.append(math.degrees(moon.az))
+
+            # 2. Geometric (pressure=0) 0.00° to 0.00° trajectory for Sky Map (no refraction dog-leg)
+            saved_pressure = self.obs.pressure
+            try:
+                self.obs.pressure = 0
+                if has_valid_pass:
+                    mid_pass = ephem.Date((float(m_rise) + float(m_set)) / 2.0)
+                    self.obs.date = mid_pass
+                    geom_rise = self.obs.previous_rising(moon, use_center=True)
+                    self.obs.date = geom_rise
+                    geom_set = self.obs.next_setting(moon, use_center=True)
+                else:
+                    geom_rise, geom_set = m_rise, m_set
+
+                geom_sec = (geom_set.datetime() - geom_rise.datetime()).total_seconds()
+                if geom_sec > 0:
+                    for i in range(51):
+                        eval_time = geom_rise.datetime() + timedelta(seconds=(geom_sec / 50.0) * i)
+                        self.obs.date = eval_time
+                        moon.compute(self.obs)
+                        alt_deg = math.degrees(float(moon.alt))
+                        # Pin exact endpoints to 0.0° if non-polar so they sit dead-on the r=41.86 ring
+                        if has_valid_pass and (i == 0 or i == 50):
+                            alt_deg = 0.0
+                        if alt_deg >= 0.0:
+                            moon_map_pts.append((math.degrees(float(moon.az)), alt_deg))
+            except Exception:
+                pass
+            finally:
+                self.obs.pressure = saved_pressure
 
         m_rise_dt = dt_util.as_local(m_rise.datetime().replace(tzinfo=dt_util.UTC)) if has_valid_pass else None
         m_set_dt = dt_util.as_local(m_set.datetime().replace(tzinfo=dt_util.UTC)) if has_valid_pass else None
@@ -218,6 +254,7 @@ class SkyLiteCoordinator(DataUpdateCoordinator):
             "moon_rise_az": moon_rise_az,
             "moon_set_az": moon_set_az,
             "moon_arc_az": moon_arc_az,
+            "moon_map_pts": moon_map_pts,
             "total_sec_m": total_sec_m,
         }
 
@@ -254,11 +291,15 @@ class SkyLiteCoordinator(DataUpdateCoordinator):
             data["sun_dec_deg"] = math.degrees(sun_dec)
             data["moon_phase"] = moon_obj.phase / 100.0
 
+            # Check for Solar Eclipse (angular separation < 0.55° near New Moon)
+            sep_deg = math.degrees(float(ephem.separation(sun_obj, moon_obj)))
+            data["solar_eclipse_active"] = (sep_deg < 0.55 and data["moon_phase"] < 0.05)
+
             # Upright Waxing/Waning check (used by Sky Map & Legend Sensor)
             angle = (moon_ra - sun_ra) % (2 * math.pi)
             data["moon_waning"] = angle >= math.pi
 
-            # Jean Meeus Naked-Eye Moon Orientation (used by Sky Glance)
+            # Jean Meeus Naked-Eye Moon Orientation (used by Sky Glance)[cite: 22]
             d_ra = sun_ra - moon_ra
             num_chi = math.cos(sun_dec) * math.sin(d_ra)
             den_chi = math.sin(sun_dec) * math.cos(moon_dec) - math.cos(sun_dec) * math.sin(moon_dec) * math.cos(d_ra)
@@ -270,7 +311,7 @@ class SkyLiteCoordinator(DataUpdateCoordinator):
             q_rad = math.atan2(num_q, den_q)
 
             zenith_limb_deg = math.degrees(chi_rad - q_rad)
-            data["moon_glance_rot_deg"] = zenith_limb_deg - 90.0
+            data["moon_glance_rot_deg"] = -zenith_limb_deg - 90.0
 
             # Moon Age & Upcoming Phases
             prev_new = ephem.previous_new_moon(now_ephem)

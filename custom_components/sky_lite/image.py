@@ -8,6 +8,84 @@ from .const import *
 
 _LOGGER = logging.getLogger(__name__)
 
+
+# Shared Atmospheric Lerp Helpers (Used by both Sky Map and Sky Glance)
+def _hex_to_rgb(h):
+    h = h.lstrip('#')
+    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+def _rgb_to_hex(r, g, b):
+    return f'#{int(r):02x}{int(g):02x}{int(b):02x}'
+
+def _lerp_color(c1, c2, t):
+    r1, g1, b1 = _hex_to_rgb(c1)
+    r2, g2, b2 = _hex_to_rgb(c2)
+    return _rgb_to_hex(r1 + (r2 - r1) * t, g1 + (g2 - g1) * t, b1 + (b2 - b1) * t)
+
+def _get_interpolated_state(alt, keyframes):
+    if alt >= keyframes[0]['alt']:
+        return keyframes[0]
+    if alt <= keyframes[-1]['alt']:
+        return keyframes[-1]
+    for i in range(len(keyframes) - 1):
+        upper = keyframes[i]
+        lower = keyframes[i+1]
+        if lower['alt'] <= alt <= upper['alt']:
+            t = (upper['alt'] - alt) / (upper['alt'] - lower['alt'])
+            state = {}
+            for key in upper.keys():
+                if key == 'alt':
+                    continue
+                if isinstance(upper[key], str) and upper[key].startswith('#'):
+                    state[key] = _lerp_color(lower[key], upper[key], t)
+                else:
+                    state[key] = lower[key] + (upper[key] - lower[key]) * t
+            return state
+    return keyframes[-1]
+
+def _get_bloom_keyframes(theme):
+    if theme == "red":
+        return [
+            {'alt': 20.0, 'core': '#ff0000', 'glow': '#aa0000', 'op': 0.8, 'rad_mult': 2.0},
+            {'alt': 10.0, 'core': '#ff0000', 'glow': '#990000', 'op': 0.8, 'rad_mult': 2.0},
+            {'alt': 6.0,  'core': '#ee0000', 'glow': '#880000', 'op': 1.0, 'rad_mult': 2.5},
+            {'alt': 0.0,  'core': '#dd0000', 'glow': '#770000', 'op': 1.0, 'rad_mult': 3.0},
+            {'alt': -3.0, 'core': '#bb0000', 'glow': '#660000', 'op': 0.8, 'rad_mult': 3.0},
+            {'alt': -6.0, 'core': '#990000', 'glow': '#440000', 'op': 0.4, 'rad_mult': 3.0},
+            {'alt': -12.0,'core': '#550000', 'glow': '#220000', 'op': 0.0, 'rad_mult': 3.0}
+        ]
+    return [
+        {'alt': 20.0, 'core': '#fffbeb', 'glow': '#fef08a', 'op': 0.8, 'rad_mult': 2.0},
+        {'alt': 10.0, 'core': '#fef08a', 'glow': '#fcd34d', 'op': 0.8, 'rad_mult': 2.0},
+        {'alt': 6.0,  'core': '#fde047', 'glow': '#ffaa00', 'op': 1.0, 'rad_mult': 2.5},
+        {'alt': 0.0,  'core': '#f97316', 'glow': '#ff4400', 'op': 1.0, 'rad_mult': 3.0},
+        {'alt': -3.0, 'core': '#e11d48', 'glow': '#9d174d', 'op': 0.8, 'rad_mult': 3.0},
+        {'alt': -6.0, 'core': '#be123c', 'glow': '#831843', 'op': 0.4, 'rad_mult': 3.0},
+        {'alt': -12.0,'core': '#7f1d1d', 'glow': '#450a0a', 'op': 0.0, 'rad_mult': 3.0}
+    ]
+
+def _get_body_opacity(alt):
+    if alt >= 0.0:
+        return 1.0
+    elif alt <= -7.0:
+        return 0.0
+    return (alt + 7.0) / 7.0
+
+def _get_night_glow_opacity(sun_alt, max_op=0.4):
+    if sun_alt >= 0.0:
+        return 0.0
+    elif sun_alt <= -6.0:
+        return max_op
+    return max_op * (-sun_alt / 6.0)
+
+def _get_day_surface_opacity(sun_alt):
+    if sun_alt <= 0.0:
+        return 1.0
+    elif sun_alt >= 6.0:
+        return 0.8
+    return 1.0 - (0.2 * (sun_alt / 6.0))
+
+
 async def async_setup_entry(hass, config_entry, async_add_entities):
     lat = config_entry.data.get("latitude")
     lon = config_entry.data.get("longitude")
@@ -62,14 +140,6 @@ class SkyLiteMapImage(ImageEntity):
         self._cached_svg = None
         self.async_write_ha_state()
 
-    def _get_comp_color(self, hex_color):
-        hc = hex_color.lstrip('#')
-        if len(hc) != 6: return "#ffffff"
-        r = 255 - int(hc[0:2], 16)
-        g = 255 - int(hc[2:4], 16)
-        b = 255 - int(hc[4:6], 16)
-        return f"#{r:02x}{g:02x}{b:02x}"
-
     def _radec_to_azalt(self, ra_deg, dec_deg, lst_rad, sin_lat, cos_lat):
         ra_rad, dec_rad = math.radians(ra_deg), math.radians(dec_deg)
         ha_rad = lst_rad - ra_rad
@@ -106,16 +176,17 @@ class SkyLiteMapImage(ImageEntity):
 
             opts = self.entry.options
             is_terrestrial = opts.get(CONF_PROJECTION_TERRESTRIAL, False)
+            show_body_labels = opts.get(CONF_SHOW_BODY_LABELS, False)
 
             theme = opts.get(CONF_THEME_MODE, "system")
             if theme not in ("system", "light", "dark", "red"):
                 theme = "system"
 
-            # Standalone Theme Palettes: (bg_color, c_pri, c_sec, c_div, h_c, m_bg)
+            # Standalone Theme Palettes: (bg_color, c_pri, c_sec, c_div, h_c, m_bg, m_fg, m_gl, m_path_col)
             PALETTES = {
-                "dark":  ("#0f172a", "#f8fafc", "#94a3b8", "#334155", "#020617", "#1e293b"),
-                "light": ("#ffffff", "#0f172a", "#334155", "#94a3b8", "#ffffff", "#1e293b"),
-                "red":   ("#110000", "#ff0000", "#aa0000", "#550000", "#000000", "#330000"),
+                "dark":  ("#0f172a", "#f8fafc", "#94a3b8", "#334155", "#020617", "#000000", "#fff7e6", "#ffffff", "#fff7e6"),
+                "light": ("#ffffff", "#0f172a", "#334155", "#94a3b8", "#ffffff", "#0f172a", "#fff7e6", "#cbd5e1", "#64748b"),
+                "red":   ("#110000", "#ff0000", "#aa0000", "#550000", "#000000", "#000000", "#ff0000", "#880000", "#aa0000"),
             }
 
             if theme == "system":
@@ -125,11 +196,13 @@ class SkyLiteMapImage(ImageEntity):
                     :root {{
                         --bg: {l_p[0]}; --pri: {l_p[1]}; --sec: {l_p[2]};
                         --div: {l_p[3]}; --hc: {l_p[4]}; --mbg: {l_p[5]};
+                        --mfg: {l_p[6]}; --mgl: {l_p[7]}; --mpath: {l_p[8]};
                     }}
                     @media (prefers-color-scheme: dark) {{
                         :root {{
                             --bg: {d_p[0]}; --pri: {d_p[1]}; --sec: {d_p[2]};
                             --div: {d_p[3]}; --hc: {d_p[4]}; --mbg: {d_p[5]};
+                            --mfg: {d_p[6]}; --mgl: {d_p[7]}; --mpath: {d_p[8]};
                         }}
                     }}
                 """
@@ -139,6 +212,7 @@ class SkyLiteMapImage(ImageEntity):
                     :root {{
                         --bg: {p[0]}; --pri: {p[1]}; --sec: {p[2]};
                         --div: {p[3]}; --hc: {p[4]}; --mbg: {p[5]};
+                        --mfg: {p[6]}; --mgl: {p[7]}; --mpath: {p[8]};
                     }}
                 """
 
@@ -148,37 +222,42 @@ class SkyLiteMapImage(ImageEntity):
             c_div = "var(--div)"
             h_c = "var(--hc)"
             m_bg = "var(--mbg)"
+            m_fg = "var(--mfg)"
+            m_gl = "var(--mgl)"
+            m_path_col = "var(--mpath)"
+
+            current_sun_alt = data["bodies"]["Sun"]["alt"]
+            live_bloom = _get_interpolated_state(current_sun_alt, _get_bloom_keyframes(theme))
 
             svg = []
             svg.append('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="1000" height="1000" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto; background-color: transparent;">')
 
             svg.append('<defs>')
             svg.append(f'<style>{theme_css}</style>')
-            svg.append('<filter id="halo" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.4" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>')
-            svg.append('<filter id="dsoBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.7" /></filter>')
-            svg.append('<filter id="glowBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.5" /></filter>')
+            svg.append('<filter id="halo" filterUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"><feGaussianBlur stdDeviation="0.4" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>')
+            svg.append('<filter id="dsoBlur" filterUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"><feGaussianBlur stdDeviation="0.7" /></filter>')
+            svg.append('<filter id="glowBlur" filterUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"><feGaussianBlur stdDeviation="0.6" /></filter>')
             svg.append('<clipPath id="skyClip"><circle cx="50" cy="50" r="41.86" /></clipPath>')
             svg.append('<radialGradient id="skyGrad" cx="50%" cy="50%" r="50%">')
             svg.append(f'<stop offset="30%" style="stop-color: {bg_color};" />')
             svg.append(f'<stop offset="100%" style="stop-color: {c_div}; stop-opacity: 0.3;" />')
             svg.append('</radialGradient>')
+            svg.append('<radialGradient id="sunBloomGradMap" cx="50%" cy="50%" r="50%">')
+            svg.append(f'<stop offset="0%" stop-color="{live_bloom["glow"]}" stop-opacity="1.0" />')
+            svg.append(f'<stop offset="40%" stop-color="{live_bloom["glow"]}" stop-opacity="0.6" />')
+            svg.append(f'<stop offset="100%" stop-color="{live_bloom["glow"]}" stop-opacity="0.0" />')
+            svg.append('</radialGradient>')
             if opts.get(CONF_SHOW_MILKY_WAY, False) and getattr(self, 'mw_data', None):
-                svg.append('<filter id="mwBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.8" /></filter>')
+                svg.append('<filter id="mwBlur" filterUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"><feGaussianBlur stdDeviation="1.8" /></filter>')
             svg.append('</defs>')
 
-            # Interior sky globe always rendered with url(#skyGrad) so opposite-mode card background never bleeds
+            # 1. Base Sky Dome & Grid (r=41.86 is the exact 0° horizon circle)
             svg.append(f'<circle cx="50" cy="50" r="41.86" fill="url(#skyGrad)" stroke="{c_div}" stroke-width="0.4" />')
 
             for r_deg in range(0, 90, 15):
                 r_svg = 41.86 * ((90 - r_deg) / 90)
                 if r_deg > 0:
                     svg.append(f'<circle cx="50" cy="50" r="{r_svg}" fill="none" stroke="{c_div}" stroke-width="0.35" opacity="0.6" />')
-
-                base_angle = 45 if not is_terrestrial else 315
-                if opts.get(CONF_INVERT_PLOT, False): base_angle = (base_angle + 180) % 360
-                rad = math.radians(base_angle - 90)
-                tx, ty = 50 + r_svg * math.cos(rad), 50 + r_svg * math.sin(rad)
-                svg.append(f'<text x="{tx}" y="{ty}" fill="{c_sec}" stroke="{bg_color}" stroke-width="0.5" paint-order="stroke fill" font-size="2.0" opacity="0.85" text-anchor="middle" dominant-baseline="middle">{r_deg}°</text>')
 
             for az in range(0, 360, 45):
                 is_major = (az % 90 == 0)
@@ -194,8 +273,11 @@ class SkyLiteMapImage(ImageEntity):
             lst_rad = data["lst_rad"]
             lat_rad = data["lat_rad"]
             sin_lat, cos_lat = math.sin(lat_rad), math.cos(lat_rad)
-
             selected_bodies = opts.get(CONF_SELECTED_BODIES, DEFAULT_BODIES)
+
+            # Precompute Solar & Lunar Paths and their outward tangent vectors at the 0° horizon
+            rendered_solar_paths = []
+            sun_track_marker_pt = None
             if any(b.lower() == "sun" for b in selected_bodies):
                 current_dec = data["sun_dec_deg"]
 
@@ -208,34 +290,104 @@ class SkyLiteMapImage(ImageEntity):
                     td_col = f"#{int(170 + t_sub * 85):02x}{int(255 - t_sub * 170):02x}00"
 
                 solar_lines = [
-                    (23.44, "0.35", "0.6", "2,2", "#ff5500"),
-                    (-23.44, "0.35", "0.6", "2,2", "#00aaff"),
-                    (0.0, "0.35", "0.6", "4,4", "#aaff00"),
-                    (current_dec, "0.6", "0.85", "", td_col)
+                    (23.44, "0.35", "0.6", "2,2", "#ff5500", False),
+                    (-23.44, "0.35", "0.6", "2,2", "#00aaff", False),
+                    (0.0, "0.35", "0.6", "4,4", "#aaff00", False),
+                    (current_dec, "0.6", "0.85", "", td_col, True)
                 ]
 
-                for dec, sw, opac, dash, col in solar_lines:
+                for dec, sw, opac, dash, col, is_daily_sun in solar_lines:
+                    dec_r = math.radians(dec)
+                    sin_dec, cos_dec = math.sin(dec_r), math.cos(dec_r)
+                    cos_h0 = -(sin_lat * sin_dec) / (cos_lat * cos_dec) if abs(cos_lat * cos_dec) > 1e-7 else 99.0
+                    if cos_h0 >= 1.0:
+                        continue
+                    elif cos_h0 <= -1.0:
+                        h0_rad = math.pi
+                        is_exact_horizon = False
+                    else:
+                        h0_rad = math.acos(cos_h0)
+                        is_exact_horizon = True
+
                     path_pts = []
-                    for ha_deg in range(-180, 185, 4):
-                        ha_r, dec_r = math.radians(ha_deg), math.radians(dec)
-                        sin_alt = sin_lat * math.sin(dec_r) + cos_lat * math.cos(dec_r) * math.cos(ha_r)
-                        alt_p = math.degrees(math.asin(sin_alt))
-                        if alt_p >= -7:
-                            cos_az = (math.sin(dec_r) - sin_lat * sin_alt) / (cos_lat * math.cos(math.asin(sin_alt)))
-                            az_r = math.acos(max(-1.0, min(1.0, cos_az)))
-                            if math.sin(ha_r) > 0: az_r = 2 * math.pi - az_r
-                            px, py = self.get_projection(math.degrees(az_r), alt_p)
-                            path_pts.append(f"{px},{py}")
-                        elif path_pts:
-                            dash_attr = f' stroke-dasharray="{dash}"' if dash else ''
-                            svg.append(f'<path d="M ' + ' L '.join(path_pts) + f'" fill="none" stroke="{col}" stroke-width="{sw}" opacity="{opac}"{dash_attr} filter="url(#halo)" />')
-                            path_pts = []
+                    raw_coords = []
+                    steps = 60
+                    for i in range(steps + 1):
+                        ha_r = -h0_rad + (2.0 * h0_rad * i / steps)
+                        if is_exact_horizon and (i == 0 or i == steps):
+                            alt_p = 0.0
+                            sin_alt = 0.0
+                            cos_alt = 1.0
+                        else:
+                            sin_alt = max(-1.0, min(1.0, sin_lat * sin_dec + cos_lat * cos_dec * math.cos(ha_r)))
+                            alt_r = math.asin(sin_alt)
+                            alt_p = max(0.0, math.degrees(alt_r))
+                            cos_alt = math.cos(alt_r)
+
+                        cos_az = (sin_dec - sin_lat * sin_alt) / (cos_lat * cos_alt) if abs(cos_lat * cos_alt) > 1e-7 else 0.0
+                        az_r = math.acos(max(-1.0, min(1.0, cos_az)))
+                        if math.sin(ha_r) > 0:
+                            az_r = 2.0 * math.pi - az_r
+                        px, py = self.get_projection(math.degrees(az_r), alt_p)
+                        raw_coords.append((px, py))
+                        path_pts.append(f"{px:.2f},{py:.2f}")
+
+                    if is_daily_sun and len(raw_coords) > 1:
+                        if is_exact_horizon:
+                            # Extrapolate 2.1 units outward along the entry tangent into the margin channel (r ≈ 43.9)
+                            p0_x, p0_y = raw_coords[0]
+                            p1_x, p1_y = raw_coords[1]
+                            dx, dy = p0_x - p1_x, p0_y - p1_y
+                            dist = math.hypot(dx, dy)
+                            if dist > 1e-5:
+                                sun_track_marker_pt = (p0_x + (dx / dist) * 2.6, p0_y + (dy / dist) * 2.6)
+                        else:
+                            sun_track_marker_pt = raw_coords[0]
+
                     if len(path_pts) > 1:
                         dash_attr = f' stroke-dasharray="{dash}"' if dash else ''
-                        svg.append(f'<path d="M ' + ' L '.join(path_pts) + f'" fill="none" stroke="{col}" stroke-width="{sw}" opacity="{opac}"{dash_attr} filter="url(#halo)" />')
+                        rendered_solar_paths.append(
+                            f'<path d="M ' + ' L '.join(path_pts) + f'" fill="none" stroke="{col}" stroke-width="{sw}" opacity="{opac}"{dash_attr} filter="url(#halo)" />'
+                        )
+
+            rendered_moon_path = None
+            moon_track_marker_pt = None
+            if any(b.lower() == "moon" for b in selected_bodies) and "glance" in data:
+                moon_map_pts = data["glance"].get("moon_map_pts", [])
+                if len(moon_map_pts) > 1:
+                    m_path_pts = []
+                    m_raw_coords = []
+                    for m_az, m_alt in moon_map_pts:
+                        px, py = self.get_projection(m_az, m_alt)
+                        m_raw_coords.append((px, py))
+                        m_path_pts.append(f"{px:.2f},{py:.2f}")
+                    rendered_moon_path = f'<path d="M ' + ' L '.join(m_path_pts) + f'" fill="none" stroke="{m_path_col}" stroke-width="0.5" opacity="0.75" filter="url(#halo)" />'
+
+                    if not data["glance"].get("is_moon_polar", False):
+                        p0_x, p0_y = m_raw_coords[0]
+                        p1_x, p1_y = m_raw_coords[1]
+                        dx, dy = p0_x - p1_x, p0_y - p1_y
+                        dist = math.hypot(dx, dy)
+                        if dist > 1e-5:
+                            moon_track_marker_pt = (p0_x + (dx / dist) * 2.6, p0_y + (dy / dist) * 2.6)
+                    else:
+                        moon_track_marker_pt = m_raw_coords[0]
+
+            # Track Origin Symbols (☼ / ☾) positioned in the margin channel (between 0° ring and compass)
+            # aligned along the exact tangent vector of each track
+            if show_body_labels:
+                if sun_track_marker_pt is not None:
+                    sx, sy = sun_track_marker_pt
+                    svg.append(f'<text x="{sx:.2f}" y="{sy:.2f}" fill="{c_div}" stroke="none" font-family="sans-serif" font-size="2.5" text-anchor="middle" dominant-baseline="central">☼\ufe0e</text>')
+                if moon_track_marker_pt is not None:
+                    mx_pt, my_pt = moon_track_marker_pt
+                    svg.append(f'<text x="{mx_pt:.2f}" y="{my_pt:.2f}" fill="{c_div}" stroke="none" font-family="sans-serif" font-size="2.5" text-anchor="middle" dominant-baseline="central">☾\ufe0e</text>')
+
+            # 2. Begin Clipped 0° Sky Hemisphere Group
+            svg.append('<g clip-path="url(#skyClip)">')
 
             if opts.get(CONF_SHOW_MILKY_WAY, False) and getattr(self, 'mw_data', None):
-                svg.append('<g clip-path="url(#skyClip)" filter="url(#mwBlur)">')
+                svg.append('<g filter="url(#mwBlur)">')
                 for multipoly in self.mw_data:
                     for poly in multipoly:
                         for ring in poly:
@@ -248,28 +400,33 @@ class SkyLiteMapImage(ImageEntity):
                                     if math.hypot(px - last_x, py - last_y) > 50:
                                         if len(path_pts) > 2: svg.append(f'<path d="M ' + ' L '.join(path_pts) + f' Z" fill="none" stroke="{c_sec}" stroke-width="4.5" opacity="0.12" stroke-linejoin="round" />')
                                         path_pts = []
-                                path_pts.append(f"{px},{py}")
+                                path_pts.append(f"{px:.2f},{py:.2f}")
                             if len(path_pts) > 2: svg.append(f'<path d="M ' + ' L '.join(path_pts) + f' Z" fill="none" stroke="{c_sec}" stroke-width="4.5" opacity="0.12" stroke-linejoin="round" />')
                 svg.append('</g>')
 
+            # Append Solar & Lunar Paths (striking directly through the center of any track origin symbols)
+            for s_path in rendered_solar_paths:
+                svg.append(s_path)
+            if rendered_moon_path:
+                svg.append(rendered_moon_path)
+
+            # Constellations
             show_const_lines = opts.get(CONF_SHOW_CONSTELLATIONS, False)
             show_const_labels = opts.get(CONF_SHOW_CONST_LABELS, False)
             const_centroids = {}
 
             if (show_const_lines or show_const_labels) and getattr(self, 'constellation_data', None):
-                if show_const_lines:
-                    svg.append('<g clip-path="url(#skyClip)">')
                 for cid, lines in self.constellation_data.items():
                     label_pts = []
                     for line in lines:
                         path_pts = []
                         for pt in line:
                             az_deg, alt_deg = self._radec_to_azalt(pt[0], pt[1], lst_rad, sin_lat, cos_lat)
-                            if alt_deg >= -7:
+                            if alt_deg >= -5.0:
                                 px, py = self.get_projection(az_deg, alt_deg)
                                 if show_const_lines:
-                                    path_pts.append(f"{px},{py}")
-                                if show_const_labels and alt_deg >= 0:
+                                    path_pts.append(f"{px:.2f},{py:.2f}")
+                                if show_const_labels and alt_deg >= 0.0:
                                     label_pts.append((px, py))
                         if show_const_lines and len(path_pts) > 1:
                             svg.append(f'<path d="M ' + ' L '.join(path_pts) + f'" fill="none" stroke="{c_div}" stroke-width="0.3" opacity="0.5" />')
@@ -278,64 +435,115 @@ class SkyLiteMapImage(ImageEntity):
                             sum(p[0] for p in label_pts) / len(label_pts),
                             sum(p[1] for p in label_pts) / len(label_pts),
                         )
-                if show_const_lines:
-                    svg.append('</g>')
 
+            # Stars (Clamped to alt_deg >= 0.0°)
             if opts.get(CONF_SHOW_STARS, True) and getattr(self, 'star_data', None):
                 for star in self.star_data:
                     az_deg, alt_deg = self._radec_to_azalt(star.get("coords", [0, 0])[0], star.get("coords", [0, 0])[1], lst_rad, sin_lat, cos_lat)
-                    if alt_deg >= -7:
+                    if alt_deg >= 0.0:
                         px, py = self.get_projection(az_deg, alt_deg)
                         r, opac = max(0.08, 0.6 - (star.get("mag", 5.0) * 0.1)), max(0.1, 0.85 - (star.get("mag", 5.0) * 0.12))
-                        svg.append(f'<circle cx="{px}" cy="{py}" r="{r}" fill="{c_sec}" opacity="{opac}" />')
+                        svg.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="{r:.2f}" fill="{c_sec}" opacity="{opac:.2f}" />')
 
+            # Deep Sky Objects (Clamped to alt_deg >= 0.0°)
             if opts.get(CONF_SHOW_DSO, False) and getattr(self, 'dso_data', None):
                 for dso in self.dso_data:
                     az_deg, alt_deg = self._radec_to_azalt(dso.get("coords", [0, 0])[0], dso.get("coords", [0, 0])[1], lst_rad, sin_lat, cos_lat)
-                    if alt_deg >= -7:
+                    if alt_deg >= 0.0:
                         px, py = self.get_projection(az_deg, alt_deg)
                         r, opac = max(0.8, 1.6 - (dso.get("mag", 6.0) * 0.15)), max(0.35, 0.95 - (dso.get("mag", 6.0) * 0.1))
-                        svg.append(f'<circle cx="{px}" cy="{py}" r="{r}" fill="#38bdf8" opacity="{opac}" filter="url(#dsoBlur)" />')
+                        svg.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="{r:.2f}" fill="#38bdf8" opacity="{opac:.2f}" filter="url(#dsoBlur)" />')
                         if opts.get(CONF_SHOW_DSO_LABELS, False) and dso.get("name", ""):
-                            svg.append(f'<text x="{px+1.5}" y="{py+1.5}" fill="{c_pri}" stroke="{h_c}" stroke-width="0.3" paint-order="stroke fill" font-size="1.4" opacity="0.65">{dso.get("name", "")}</text>')
+                            svg.append(f'<text x="{px+1.5:.2f}" y="{py+1.5:.2f}" fill="{c_pri}" stroke="{h_c}" stroke-width="0.3" paint-order="stroke fill" font-size="1.4" opacity="0.65">{dso.get("name", "")}</text>')
 
             if show_const_labels and const_centroids:
                 for cid, (cx, cy) in const_centroids.items():
                     label = CONSTELLATIONS.get(cid, cid)
-                    svg.append(f'<text x="{cx}" y="{cy}" fill="{c_pri}" stroke="{h_c}" stroke-width="0.4" paint-order="stroke fill" font-size="1.8" opacity="0.85" text-anchor="middle" dominant-baseline="middle">{label}</text>')
+                    svg.append(f'<text x="{cx:.2f}" y="{cy:.2f}" fill="{c_pri}" stroke="{h_c}" stroke-width="0.4" paint-order="stroke fill" font-size="1.8" opacity="0.85" text-anchor="middle" dominant-baseline="middle">{label}</text>')
 
+            # Solar System Bodies
+            # Draw Order: Sun/Moon first (with Solar Eclipse swap), then Planets from Largest -> Smallest
+            # so smaller planets are never occluded by larger bodies!
             if selected_bodies:
-                for body_name in selected_bodies:
+                day_surf_op = _get_day_surface_opacity(current_sun_alt)
+                planet_glow_op = _get_night_glow_opacity(current_sun_alt, max_op=0.55)
+                moon_glow_op = _get_night_glow_opacity(current_sun_alt, max_op=0.40)
+
+                eclipse_active = data.get("solar_eclipse_active", False)
+                luminary_order = ["Sun", "Moon"] if eclipse_active else ["Moon", "Sun"]
+                planet_order_largest_first = ["Jupiter", "Saturn", "Venus", "Mars", "Mercury"]
+                draw_order = [b for b in (luminary_order + planet_order_largest_first) if any(s.lower() == b.lower() for s in selected_bodies)]
+
+                for body_name in draw_order:
                     b_info = data["bodies"].get(body_name)
                     if not b_info:
                         continue
                     alt, az = b_info["alt"], b_info["az"]
+                    if alt <= -7.0:
+                        continue
 
-                    if alt >= -7:
-                        px, py = self.get_projection(az, alt)
-                        color, r = BODIES_CONF.get(body_name, ("#ffffff", 2.0))
-                        comp_color = self._get_comp_color(color)
+                    px, py = self.get_projection(az, alt)
+                    color, r = BODIES_CONF.get(body_name, ("#ffffff", 2.0))
+                    body_op = _get_body_opacity(alt)
 
-                        if body_name.lower() == "moon":
-                            illum = data["moon_phase"]
-                            is_waxing = not data["moon_waning"]
+                    if body_name == "Sun":
+                        r_sun_bloom = r * live_bloom["rad_mult"]
+                        if live_bloom["op"] > 0:
+                            svg.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="{r_sun_bloom:.2f}" fill="url(#sunBloomGradMap)" opacity="{live_bloom["op"] * body_op:.2f}" />')
+                        svg.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="{r:.2f}" fill="{live_bloom["core"]}" opacity="{body_op:.2f}" />')
 
-                            svg.append(f'<circle cx="{px}" cy="{py}" r="{r*1.5}" fill="{comp_color}" filter="url(#glowBlur)" opacity="0.8" />')
-                            svg.append(f'<circle cx="{px}" cy="{py}" r="{r}" fill="{m_bg}" stroke="{color}" stroke-width="0.3" />')
+                    elif body_name == "Moon":
+                        illum = data["moon_phase"]
+                        is_waxing = not data["moon_waning"]
+                        r_moon_glow = r * 1.5
 
-                            mx = r * (1.0 - 2.0 * illum)
-                            sweep_outer = "1" if is_waxing else "0"
-                            sweep_inner = "0" if is_waxing else "1"
-
-                            if illum <= 0.5:
-                                path = f"M {px},{py-r} A {r},{r} 0 0,{sweep_outer} {px},{py+r} A {abs(mx)},{r} 0 0,{sweep_inner} {px},{py-r}"
-                            else:
-                                path = f"M {px},{py-r} A {r},{r} 0 0,{sweep_outer} {px},{py+r} A {abs(mx)},{r} 0 0,{sweep_outer} {px},{py-r}"
-
-                            svg.append(f'<path d="{path}" fill="{color}" />')
+                        if current_sun_alt >= 12.0:
+                            base_dark_op = 0.0
+                        elif current_sun_alt <= -12.0:
+                            base_dark_op = 0.8
                         else:
-                            svg.append(f'<circle cx="{px}" cy="{py}" r="{r*1.5}" fill="{comp_color}" filter="url(#glowBlur)" opacity="0.8" />')
-                            svg.append(f'<circle cx="{px}" cy="{py}" r="{r}" fill="{color}" />')
+                            base_dark_op = 0.8 * ((12.0 - current_sun_alt) / 24.0)
+                        final_dark_side_op = base_dark_op * (1.0 - illum)
+
+                        svg.append(f'<g opacity="{body_op:.2f}">')
+                        if moon_glow_op > 0:
+                            svg.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="{r_moon_glow:.2f}" fill="{m_gl}" filter="url(#glowBlur)" opacity="{moon_glow_op:.2f}" />')
+                        svg.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="{r:.2f}" fill="{m_bg}" opacity="{final_dark_side_op:.2f}" />')
+
+                        mx = r * (1.0 - 2.0 * illum)
+                        sweep_outer = "1" if is_waxing else "0"
+                        sweep_inner = "0" if is_waxing else "1"
+                        if illum <= 0.5:
+                            path = f"M {px:.2f},{py-r:.2f} A {r:.2f},{r:.2f} 0 0,{sweep_outer} {px:.2f},{py+r:.2f} A {abs(mx):.2f},{r:.2f} 0 0,{sweep_inner} {px:.2f},{py-r:.2f}"
+                        else:
+                            path = f"M {px:.2f},{py-r:.2f} A {r:.2f},{r:.2f} 0 0,{sweep_outer} {px:.2f},{py+r:.2f} A {abs(mx):.2f},{r:.2f} 0 0,{sweep_outer} {px:.2f},{py-r:.2f}"
+
+                        svg.append(f'<path d="{path}" fill="{m_fg}" opacity="{day_surf_op:.2f}" />')
+                        svg.append('</g>')
+
+                    else:
+                        # Planets: Natural hue twilight glow + daytime surface translucency + optional black Unicode symbol
+                        p_col = "#cc0000" if theme == "red" else color
+                        p_glow_col = "#880000" if theme == "red" else color
+                        svg.append(f'<g opacity="{body_op:.2f}">')
+                        if planet_glow_op > 0:
+                            svg.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="{r * 1.6:.2f}" fill="{p_glow_col}" filter="url(#glowBlur)" opacity="{planet_glow_op:.2f}" />')
+                        svg.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="{r:.2f}" fill="{p_col}" opacity="{day_surf_op:.2f}" />')
+                        if show_body_labels and body_name in PLANET_SYMBOLS:
+                            sym = PLANET_SYMBOLS[body_name]
+                            svg.append(f'<text x="{px:.2f}" y="{py:.2f}" fill="#000000" stroke="none" font-family="sans-serif" font-size="{r * 1.65:.2f}" font-weight="bold" text-anchor="middle" dominant-baseline="central" opacity="{day_surf_op:.2f}">{sym}</text>')
+                        svg.append('</g>')
+
+            svg.append('</g>') # End 0° skyClip Group
+
+            # 3. Foreground Elevation Ring Degree Labels & Outer Compass
+            for r_deg in range(0, 90, 15):
+                r_svg = 41.86 * ((90 - r_deg) / 90)
+                base_angle = 45 if not is_terrestrial else 315
+                if opts.get(CONF_INVERT_PLOT, False): base_angle = (base_angle + 180) % 360
+                rad = math.radians(base_angle - 90)
+                tx, ty = 50 + r_svg * math.cos(rad), 50 + r_svg * math.sin(rad)
+                svg.append(f'<text x="{tx:.2f}" y="{ty:.2f}" fill="{c_sec}" stroke="{bg_color}" stroke-width="0.5" paint-order="stroke fill" font-size="2.0" opacity="0.85" text-anchor="middle" dominant-baseline="middle">{r_deg}°</text>')
 
             if opts.get(CONF_SHOW_COMPASS, True):
                 for label, az in [("N",0), ("NE",45), ("E",90), ("SE",135), ("S",180), ("SW",225), ("W",270), ("NW",315)]:
@@ -480,37 +688,6 @@ class SkyLiteGlanceImage(ImageEntity):
             m_fg = "var(--mfg)"
             m_gl = "var(--mgl)"
 
-            # --- LINEAR INTERPOLATION (LERP) ENGINE ---
-            def hex_to_rgb(h):
-                h = h.lstrip('#')
-                return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
-
-            def rgb_to_hex(r, g, b):
-                return f'#{int(r):02x}{int(g):02x}{int(b):02x}'
-
-            def lerp_color(c1, c2, t):
-                r1, g1, b1 = hex_to_rgb(c1)
-                r2, g2, b2 = hex_to_rgb(c2)
-                return rgb_to_hex(r1 + (r2 - r1) * t, g1 + (g2 - g1) * t, b1 + (b2 - b1) * t)
-
-            def get_interpolated_state(alt, keyframes):
-                if alt >= keyframes[0]['alt']: return keyframes[0]
-                if alt <= keyframes[-1]['alt']: return keyframes[-1]
-                for i in range(len(keyframes) - 1):
-                    upper = keyframes[i]
-                    lower = keyframes[i+1]
-                    if lower['alt'] <= alt <= upper['alt']:
-                        t = (upper['alt'] - alt) / (upper['alt'] - lower['alt'])
-                        state = {}
-                        for key in upper.keys():
-                            if key == 'alt': continue
-                            if isinstance(upper[key], str) and upper[key].startswith('#'):
-                                state[key] = lerp_color(lower[key], upper[key], t)
-                            else:
-                                state[key] = lower[key] + (upper[key] - lower[key]) * t
-                        return state
-                return keyframes[-1]
-
             if theme == "red":
                 sky_keyframes = [
                     {'alt': 12.0, 'top': '#330000', 'mid': '#660000', 'bot': '#aa0000'},
@@ -520,15 +697,6 @@ class SkyLiteGlanceImage(ImageEntity):
                     {'alt': -6.0, 'top': '#110000', 'mid': '#220000', 'bot': '#3b0000'},
                     {'alt': -12.0,'top': '#0a0000', 'mid': '#150000', 'bot': '#250000'},
                     {'alt': -18.0,'top': '#000000', 'mid': '#080000', 'bot': '#150000'}
-                ]
-                bloom_keyframes = [
-                    {'alt': 20.0, 'core': '#ff0000', 'glow': '#aa0000', 'op': 0.8, 'rad_mult': 2.0},
-                    {'alt': 10.0, 'core': '#ff0000', 'glow': '#990000', 'op': 0.8, 'rad_mult': 2.0},
-                    {'alt': 6.0,  'core': '#ee0000', 'glow': '#880000', 'op': 1.0, 'rad_mult': 2.5},
-                    {'alt': 0.0,  'core': '#dd0000', 'glow': '#770000', 'op': 1.0, 'rad_mult': 3.0},
-                    {'alt': -3.0, 'core': '#bb0000', 'glow': '#660000', 'op': 0.8, 'rad_mult': 3.0},
-                    {'alt': -6.0, 'core': '#990000', 'glow': '#440000', 'op': 0.4, 'rad_mult': 3.0},
-                    {'alt': -12.0,'core': '#550000', 'glow': '#220000', 'op': 0.0, 'rad_mult': 3.0}
                 ]
             else:
                 sky_keyframes = [
@@ -540,18 +708,9 @@ class SkyLiteGlanceImage(ImageEntity):
                     {'alt': -12.0,'top': '#020617', 'mid': '#0f172a', 'bot': '#1e3a8a'},
                     {'alt': -18.0,'top': '#000000', 'mid': '#000000', 'bot': '#020617'}
                 ]
-                bloom_keyframes = [
-                    {'alt': 20.0, 'core': '#fffbeb', 'glow': '#fef08a', 'op': 0.8, 'rad_mult': 2.0},
-                    {'alt': 10.0, 'core': '#fef08a', 'glow': '#fcd34d', 'op': 0.8, 'rad_mult': 2.0},
-                    {'alt': 6.0,  'core': '#fde047', 'glow': '#ffaa00', 'op': 1.0, 'rad_mult': 2.5},
-                    {'alt': 0.0,  'core': '#f97316', 'glow': '#ff4400', 'op': 1.0, 'rad_mult': 3.0},
-                    {'alt': -3.0, 'core': '#e11d48', 'glow': '#9d174d', 'op': 0.8, 'rad_mult': 3.0},
-                    {'alt': -6.0, 'core': '#be123c', 'glow': '#831843', 'op': 0.4, 'rad_mult': 3.0},
-                    {'alt': -12.0,'core': '#7f1d1d', 'glow': '#450a0a', 'op': 0.0, 'rad_mult': 3.0}
-                ]
 
-            live_sky = get_interpolated_state(current_sun_alt, sky_keyframes)
-            live_bloom = get_interpolated_state(current_sun_alt, bloom_keyframes)
+            live_sky = _get_interpolated_state(current_sun_alt, sky_keyframes)
+            live_bloom = _get_interpolated_state(current_sun_alt, _get_bloom_keyframes(theme))
 
             # --- CANVAS ---
             WIDTH = 200
@@ -660,7 +819,6 @@ class SkyLiteGlanceImage(ImageEntity):
             svg.append(f'<stop offset="100%" stop-color="{live_sky["mid"]}" />')
             svg.append('</linearGradient>')
 
-            # userSpaceOnUse ensures filter regions are not squeezed by shallow winter dome arches
             svg.append(f'<filter id="glowBlurGlance" filterUnits="userSpaceOnUse" x="0" y="0" width="{WIDTH}" height="{HEIGHT}"><feGaussianBlur stdDeviation="0.6" /></filter>')
             svg.append(f'<filter id="domeGlow" filterUnits="userSpaceOnUse" x="0" y="0" width="{WIDTH}" height="{HEIGHT}"><feGaussianBlur stdDeviation="3.0" /></filter>')
             svg.append(f'<clipPath id="skyClip"><rect x="0" y="0" width="{WIDTH}" height="{sky_clip_height}" /></clipPath>')
@@ -721,7 +879,6 @@ class SkyLiteGlanceImage(ImageEntity):
             r_moon_glow = dyn_r * 1.5
             r_sun_bloom = dyn_r * live_bloom['rad_mult']
 
-            # Monochromatic Sun symbol (\u2600\ufe0e)
             am_items_def = [
                 (+6, '6:00', None),
                 (+1, None, '☀\ufe0e Golden'),
@@ -804,7 +961,6 @@ class SkyLiteGlanceImage(ImageEntity):
                 fill_path = f"M {first_x},{HORIZON_Y} L " + " L ".join(sun_pts) + f" L {last_x},{HORIZON_Y} Z"
                 arc_only_path = f"M {first_x},{HORIZON_Y} L " + " L ".join(sun_pts) + f" L {last_x},{HORIZON_Y}"
 
-                # Round linecaps and joins eliminate diagonal butt-cap chops at the horizon corners
                 svg.append(f'<path d="{arc_only_path}" fill="none" stroke="url(#skyGrad)" stroke-width="{dome_aura_width}" stroke-linecap="round" stroke-linejoin="round" filter="url(#domeGlow)" opacity="0.6" />')
                 svg.append(f'<path d="{arc_only_path}" fill="none" stroke="url(#skyGrad)" stroke-width="{r_sun_core * 2}" stroke-linecap="round" stroke-linejoin="round" opacity="1.0" />')
                 svg.append(f'<path d="{fill_path}" fill="url(#skyGrad)" />')
@@ -812,23 +968,10 @@ class SkyLiteGlanceImage(ImageEntity):
             if len(moon_pts) > 1:
                 svg.append(f'<path d="M ' + ' L '.join(moon_pts) + f'" fill="none" stroke="{c_sec}" stroke-width="0.4" stroke-dasharray="1.5,1.5" opacity="0.6" />')
 
-            def get_body_opacity(alt):
-                if alt >= 0.0: return 1.0
-                elif alt <= -7.0: return 0.0
-                else: return (alt + 7.0) / 7.0
-
-            def get_moon_glow_opacity(sun_alt):
-                if sun_alt >= 0.0: return 0.0
-                elif sun_alt <= -6.0: return 0.4
-                else: return 0.4 * (-sun_alt / 6.0)
-
-            if current_sun_alt <= 0.0: moon_lit_op = 1.0
-            elif current_sun_alt >= 6.0: moon_lit_op = 0.8
-            else: moon_lit_op = 1.0 - (0.2 * (current_sun_alt / 6.0))
-
-            sun_body_op = f"{get_body_opacity(current_sun_alt):.2f}"
-            moon_body_op = f"{get_body_opacity(current_moon_alt):.2f}"
-            moon_glow_live = get_moon_glow_opacity(current_sun_alt)
+            moon_lit_op = _get_day_surface_opacity(current_sun_alt)
+            sun_body_op = f"{_get_body_opacity(current_sun_alt):.2f}"
+            moon_body_op = f"{_get_body_opacity(current_moon_alt):.2f}"
+            moon_glow_live = _get_night_glow_opacity(current_sun_alt, max_op=0.40)
 
             sun_tel_op = "0.15" if current_sun_alt < -7.0 else "1.0"
             moon_tel_op = "0.15" if current_moon_alt < -7.0 else "1.0"
@@ -851,28 +994,34 @@ class SkyLiteGlanceImage(ImageEntity):
             else: base_dark_op = 0.8 * ((12.0 - current_sun_alt) / 24.0)
             final_dark_side_op = base_dark_op * (1.0 - illum)
 
-            # True Naked-Eye Moon Limb Orientation (Jean Meeus Bright Limb - Parallactic Angle)
             rot_deg = data["moon_glance_rot_deg"]
-
-            svg.append(f'<g opacity="{moon_body_op}">')
-            svg.append(f'<circle cx="{cx_moon}" cy="{cy_moon}" r="{r_moon_glow}" fill="{m_gl}" filter="url(#glowBlurGlance)" opacity="{moon_glow_live:.2f}" />')
-            svg.append(f'<circle cx="{cx_moon}" cy="{cy_moon}" r="{r_moon_core}" fill="#000000" opacity="{final_dark_side_op:.2f}" />')
-
             mx = r_moon_core * (1.0 - 2.0 * illum)
             sweep_inner = "0" if illum <= 0.5 else "1"
             m_path = f"M {cx_moon},{cy_moon-r_moon_core} A {r_moon_core},{r_moon_core} 0 0,1 {cx_moon},{cy_moon+r_moon_core} A {abs(mx)},{r_moon_core} 0 0,{sweep_inner} {cx_moon},{cy_moon-r_moon_core}"
 
-            svg.append(f'<g transform="rotate({rot_deg:.2f} {cx_moon} {cy_moon})" opacity="{moon_lit_op:.2f}">')
-            svg.append(f'<path d="{m_path}" fill="{m_fg}" />')
-            svg.append('</g>')
-            svg.append('</g>')
+            def render_glance_moon():
+                svg.append(f'<g opacity="{moon_body_op}">')
+                svg.append(f'<circle cx="{cx_moon}" cy="{cy_moon}" r="{r_moon_glow}" fill="{m_gl}" filter="url(#glowBlurGlance)" opacity="{moon_glow_live:.2f}" />')
+                svg.append(f'<circle cx="{cx_moon}" cy="{cy_moon}" r="{r_moon_core}" fill="#000000" opacity="{final_dark_side_op:.2f}" />')
+                svg.append(f'<g transform="rotate({rot_deg:.2f} {cx_moon} {cy_moon})" opacity="{moon_lit_op:.2f}">')
+                svg.append(f'<path d="{m_path}" fill="{m_fg}" />')
+                svg.append('</g>')
+                svg.append('</g>')
 
-            if live_bloom['op'] > 0:
-                svg.append(f'<circle cx="{cx_sun}" cy="{cy_sun}" r="{r_sun_bloom}" fill="url(#sunBloomGrad)" opacity="{live_bloom["op"]}" />')
+            def render_glance_sun():
+                if live_bloom['op'] > 0:
+                    svg.append(f'<circle cx="{cx_sun}" cy="{cy_sun}" r="{r_sun_bloom}" fill="url(#sunBloomGrad)" opacity="{live_bloom["op"]}" />')
+                svg.append(f'<g opacity="{sun_body_op}">')
+                svg.append(f'<circle cx="{cx_sun}" cy="{cy_sun}" r="{r_sun_core}" fill="{live_bloom["core"]}" />')
+                svg.append('</g>')
 
-            svg.append(f'<g opacity="{sun_body_op}">')
-            svg.append(f'<circle cx="{cx_sun}" cy="{cy_sun}" r="{r_sun_core}" fill="{live_bloom["core"]}" />')
-            svg.append('</g>')
+            # Swap draw order during a Solar Eclipse so the Moon disk passes in front of the Sun
+            if data.get("solar_eclipse_active", False):
+                render_glance_sun()
+                render_glance_moon()
+            else:
+                render_glance_moon()
+                render_glance_sun()
 
             svg.append('</g>') # End Sky Clip
 

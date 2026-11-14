@@ -17,6 +17,7 @@ from .const import (
     CONF_SHOW_CONSTELLATIONS,
     CONF_SHOW_CONST_LABELS,
     CONF_SELECTED_BODIES,
+    CONF_SHOW_BODY_LABELS,
     DEFAULT_BODIES,
 )
 
@@ -97,7 +98,7 @@ class SkyLiteOptionsFlowHandler(config_entries.OptionsFlow):
             vol.Optional(CONF_SHOW_CONSTELLATIONS, default=options.get(CONF_SHOW_CONSTELLATIONS, False)): selector.BooleanSelector(),
             vol.Optional(CONF_SHOW_CONST_LABELS, default=options.get(CONF_SHOW_CONST_LABELS, False)): selector.BooleanSelector(),
 
-            # 4. SOLAR SYSTEM OBJECTS (Dropdown Multi-Select)
+            # 4. SOLAR SYSTEM OBJECTS
             vol.Optional(CONF_SELECTED_BODIES, default=options.get(CONF_SELECTED_BODIES, DEFAULT_BODIES)): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[{"value": b, "label": b} for b in DEFAULT_BODIES],
@@ -105,6 +106,7 @@ class SkyLiteOptionsFlowHandler(config_entries.OptionsFlow):
                     mode="dropdown"
                 )
             ),
+            vol.Optional(CONF_SHOW_BODY_LABELS, default=options.get(CONF_SHOW_BODY_LABELS, False)): selector.BooleanSelector(),
         })
 
         return self.async_show_form(step_id="init", data_schema=schema)
