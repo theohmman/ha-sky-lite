@@ -1,4 +1,4 @@
-# Sky Lite for Home Assistant (v2611.2)
+# Sky Lite for Home Assistant (v2611.3)
 
 Sky Lite is a lightweight, highly performant custom integration for Home Assistant that generates real-time, SVG-based celestial visualizations and ephemeris telemetry for your dashboard.
 
@@ -9,15 +9,16 @@ Built entirely with native Home Assistant architecture, Sky Lite calculates and 
 ## ✨ Features
 
 * **Dual In-Memory SVG Visualizers:**
-  * **Sky Map (`image.sky_map`):** A full-hemisphere planisphere tracking the Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn, bright stars, DSOs, the Milky Way band, seasonal solstice/equinox declination paths, and the 88 recognized IAU constellations[^1][^2][^3].
+  * **Sky Map (`image.sky_map`):** A full-hemisphere planisphere tracking the Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn, bright stars, DSOs, the Milky Way band, exact $0^\circ$-clamped seasonal solstice/equinox declination paths, the Moon's true active transit trajectory, and the 88 recognized IAU constellations[^1][^2][^3].
   * **Sky Glance (`image.sky_glance`):** A precision solar and lunar astrolabe instrument displaying a live atmospheric sky dome[^5], 51-point solar and lunar trajectories, dynamic Golden Hour / Blue Hour / Twilight inclinometer brackets[^6], and live Alt/Az/Rise/Transit/Set telemetry decks.
 * **Single-Pass RPi4 Optimization & Zero Disk I/O:** Renders entirely in memory using the native Home Assistant `image` platform. Static GeoJSON star catalogs load only once per session, daily solar trajectories and twilight crossings are cached once per calendar day, and all entities share a single centralized ephemeris pass—preserving both your CPU and SD card.
 * **True Naked-Eye Lunar Mechanics:** Implements Jean Meeus's *Astronomical Algorithms* (Bright Limb Position Angle & Parallactic Angle)[^7] in **Sky Glance** to dynamically tilt the Moon's illuminated crescent to match the exact apparent orientation seen by the human eye as it arcs across the sky, complete with daytime atmospheric wash-out and nighttime Earthshine shadow scaling.
+* **Hierarchical Planetary Sizing & Optional Astronomical Symbols:** Sizes the Sun to $15^\circ$ of elevation and scales the Moon and planets in a clear visual hierarchy above the brightest stars (`Jupiter` $\rightarrow$ `Saturn` $\rightarrow$ `Venus` $\rightarrow$ `Mars` $\rightarrow$ `Mercury`), rendered largest-to-smallest so smaller planets are never occluded during conjunctions. An optional **Show Solar System Symbols** toggle stamps monochrome astronomical symbols (`☿`, `♀`, `♂`, `♃`, `♄`) onto the planet faces across both the map and legend, and places tangent-aligned origin markers (`☼` and `☾`) at the rising horizon of the daily solar and lunar tracks.
 * **Polar & Extreme Latitude Support:** Automatically adapts to high-latitude conditions—including 24-hour Midnight Sun (`Always Up`) and Polar Night (`Never Up`) above the Arctic and Antarctic Circles—by transitioning into an unclipped $360^\circ$ orbital view.
 * **Terrestrial vs. Astronomical Projection:** Toggle **Sky Map** between looking *up* at the sky (Astronomical Planetarium View) or looking *down* at the sky projected onto the ground (Terrestrial Map View).
 * **Browser-Aware & Night-Vision Themes:** Choose **System Default** (automatically adapts to your OS/browser Light or Dark mode via native SVG media queries), standalone **Light Mode**, standalone **Dark Mode**, or a dedicated monochrome **Red (Preserve Night Vision)** mode across all views. All typography is wrapped in high-contrast vector halos (`paint-order: stroke fill`) for guaranteed legibility on any dashboard background.
 * **Rich Companion Legend (`sensor.sky_map_legend`):** Generates a Markdown ephemeris table utilizing custom, base64-encoded SVG iconography tracking Altitude, Azimuth, Rise, Set, and Apex (Transit) times in unambiguous 24-hour format (`-`/`+` day prefixes).
-* **Auto-Decluttering:** Celestial bodies and telemetry automatically fade into ghosted indicators or filter out once they dip more than $7^\circ$ below the horizon, keeping your dashboard clean and relevant.
+* **Auto-Decluttering & Physical Horizon Sinking:** Celestial bodies physically sink behind the $0^\circ$ horizon boundary while fading out down to $-7^\circ$ altitude, automatically filtering out of the companion legend once they drop below $-7^\circ$ to keep your dashboard clean and relevant.
 
 ---
 
@@ -39,7 +40,7 @@ Built entirely with native Home Assistant architecture, Sky Lite calculates and 
 1. Navigate to **Settings > Devices & Services > Integrations**.
 2. Click **+ Add Integration** and search for **Sky Lite**.
 3. Enter the Latitude, Longitude, and Elevation for your observatory.
-4. Once installed, click the **Configure** button on the integration to adjust your theme mode (`System Default`, `Light`, `Dark`, `Red`), refresh interval (`1` to `60` minutes), Sky Glance time format (`12h` or `24h`), projection mode, and celestial layer toggles.
+4. Once installed, click the **Configure** button on the integration to adjust your theme mode (`System Default`, `Light`, `Dark`, `Red`), refresh interval (`1` to `60` minutes), Sky Glance time format (`12h` or `24h`), projection mode, and celestial layer/symbol toggles.
 
 ---
 
@@ -125,21 +126,22 @@ Switching between a map view and a planetarium view requires the user to flip th
 * **Terrestrial Mode (Map View):** The observer is positioned above the horizon facing the direction at the top, simulating the user standing on the ground and looking *down* at the screen as a physical map. Celestial bodies are plotted as if they fell straight down from space onto the surface of the Earth.
 * **Astronomical Mode (Planetarium View):** The observer shifts below the horizon line, simulating the user lying on the ground—feet facing the bottom, head pointing to the top—holding the screen up to the sky. The rendering flips so that the visual points align with where the physical bodies exist in the night sky above them.
 
-### Seasonal Color Mapping (Sky Map)
+### Seasonal Color Mapping & Lunar Trajectories (Sky Map)
 Tracking the shifting path of the Sun requires understanding its changing declination across the seasons. Instead of using arbitrary colors or requiring the user to read raw numerical degrees, the solar paths are rendered using a temperature-association gradient:
 * **Winter Solstice (-23.44°):** Icy Blue
 * **Equinoxes (0.0°):** Spring Green
 * **Summer Solstice (+23.44°):** Warm Orange
-This translates complex seasonal orbital tracking into an intuitive, at-a-glance visual cue.
+Alongside the seasonal solar curves, the Moon's active pass is plotted as a refraction-corrected geometric curve from $0^\circ$ Moonrise to $0^\circ$ Moonset, with optional tangent-aligned `☼` and `☾` origin markers resting in the margin channel just outside the $0^\circ$ horizon ring.
 
-### Atmospheric & Lunar Realism (Sky Glance)
+### Atmospheric & Lunar Realism (Sky Glance & Sky Map)
 Rather than plotting a static sine wave, **Sky Glance** models the physical sky dome as a dynamic horizon-clipped projection:
 * **True Azimuth Arcs:** The dome expands in summer and contracts in winter based on the exact rising and setting azimuths of the Sun and Moon at your coordinates, automatically transitioning into a full $360^\circ$ circle during polar Midnight Sun or Polar Night.
+* **Unified Atmospheric Blooms & Coronas:** Both **Sky Glance** and **Sky Map** share a real-time linear interpolation (Lerp) engine that shifts the Sun's Kelvin bloom and core across solar altitudes, while suppressing Moon and planetary glows during bright daylight (`sun_alt >= 0°`) and blooming their natural coronas as twilight deepens into night.
 * **Naked-Eye Field Rotation:** While **Sky Map** displays an upright waxing/waning terminator for quick phase identification, **Sky Glance** computes the Moon's Parallactic Angle and Bright Limb Zenith Angle[^7] so the crescent rocks and tilts across the sky dome exactly as you see it when looking up from your backyard.
 
 ---
 
-## 📜 Attributions & Acknowledgments
+## 📜 Attributions, Credits & Acknowledgments
 
 * **Astronomical Engine:** The core positional mathematics, lunar phasing, and transit calculations powering Sky Lite are driven by [PyEphem](https://rhodesmill.org/pyephem/) by Brandon Rhodes[^1], a scientific-grade Python library for high-precision astronomy.
 * **Lunar Limb & Parallactic Algorithms:** Apparent naked-eye lunar crescent orientation equations in Sky Glance are derived from Jean Meeus's *Astronomical Algorithms* (2nd Edition, Chapters 14 & 48)[^7].
@@ -149,6 +151,7 @@ Rather than plotting a static sine wave, **Sky Glance** models the physical sky 
 * **Visual Inspiration & GeoJSON Data:** Conceptual inspiration for the map's aesthetic, SVG projection strategies, and the background GeoJSON data mapping the stars, DSOs, and Milky Way were drawn directly from the [d3-celestial](https://github.com/ofrohn/d3-celestial) JavaScript library by Olaf Frohn (`ofrohn`)[^2].
 * **Local Brand Proxy Support:** Integration icon and logo packaging implements the Home Assistant Local Brands Proxy API specification[^8].
 * **Hardware Philosophy:** Built to eliminate heavy dependency overheads on ARM processors, ensuring fluid, zero-disk-I/O celestial rendering on constrained hardware like the Raspberry Pi 4.
+* **AI Collaborative Engineering (Google Gemini):** Heavily vibe-coded and co-engineered with **Google Gemini**. Project vision, UX direction, astronomical design constraints, and hardware testing were led by `@theohmman`, with Python ephemeris optimization, spherical trigonometry, and dynamic SVG rendering code generated in collaboration with Google Gemini.
 
 ---
 
